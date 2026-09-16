@@ -20,24 +20,27 @@ export default function Footer({ onOpenAuthModal }) {
           
           {/* Col 1: Brand & Institution */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: '1.1rem'
-              }}>
-                V
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#fff', padding: '0.25rem 0.5rem', borderRadius: '8px' }}>
+                <img 
+                  src="/visai-logo.png" 
+                  alt="VISAI Logo" 
+                  style={{ 
+                    height: '36px', 
+                    objectFit: 'contain'
+                  }} 
+                />
+                <span style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: '0.85rem',
+                  fontWeight: 900,
+                  letterSpacing: '0.15em',
+                  color: '#0f172a',
+                  marginTop: '-4px'
+                }}>
+                  2027
+                </span>
               </div>
-              <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#fff', fontFamily: 'var(--font-display)' }}>
-                VISAI <span style={{ color: '#38bdf8' }}>2027</span>
-              </span>
             </div>
 
             <p style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: 1.65, marginBottom: '1.25rem' }}>

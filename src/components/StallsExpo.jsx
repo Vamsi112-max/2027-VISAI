@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { STALLS_DATA } from '../data/visaiData';
 import { Store, DollarSign, CheckCircle2, Coffee, Cpu, Sparkles, Send } from 'lucide-react';
 
-export default function StallsExpo() {
+export default function StallsExpo({ content }) {
   const [inquirySent, setInquirySent] = useState(false);
 
   return (
@@ -15,10 +15,10 @@ export default function StallsExpo() {
             <span>Campus Expo & Commercial Hub</span>
           </div>
           <h2 className="section-title">
-            Stalls & <span className="gradient-text-amber">Sponsorship Expo</span>
+            {content?.title || "Stalls & Sponsorship Expo"}
           </h2>
           <p className="section-subtitle">
-            A bustling ecosystem connecting student innovators with commercial technology vendors, startup showcases, and campus dining during the 36/48-hour event.
+            {content?.description || "A bustling ecosystem connecting student innovators with commercial technology vendors, startup showcases, and campus dining during the 36/48-hour event."}
           </p>
         </div>
 
@@ -124,8 +124,6 @@ export default function StallsExpo() {
                   <th style={{ padding: '0.85rem 1rem' }}>Category</th>
                   <th style={{ padding: '0.85rem 1rem' }}>Location</th>
                   <th style={{ padding: '0.85rem 1rem' }}>Offering</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>Tariff</th>
-                  <th style={{ padding: '0.85rem 1rem' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -135,20 +133,6 @@ export default function StallsExpo() {
                     <td style={{ padding: '1rem', color: '#64748b' }}>{stall.category}</td>
                     <td style={{ padding: '1rem', color: '#2563eb', fontWeight: 600 }}>{stall.location}</td>
                     <td style={{ padding: '1rem' }}>{stall.offering}</td>
-                    <td style={{ padding: '1rem', fontWeight: 700, color: '#d97706' }}>{stall.fee}</td>
-                    <td style={{ padding: '1rem' }}>
-                      <span style={{
-                        padding: '0.2rem 0.55rem',
-                        borderRadius: '9999px',
-                        background: '#d1fae5',
-                        color: '#059669',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        border: '1px solid #a7f3d0'
-                      }}>
-                        {stall.status}
-                      </span>
-                    </td>
                   </tr>
                 ))}
               </tbody>

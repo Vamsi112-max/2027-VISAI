@@ -23,6 +23,28 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [additionalSouvenirArticles, setAdditionalSouvenirArticles] = useState([]);
   const [problemStatementsList, setProblemStatementsList] = useState(INITIAL_PROBLEM_STATEMENTS);
+  const [siteContent, setSiteContent] = useState({
+    hero: {
+      title: 'Real Problems. Real Innovation. Real Impact.',
+      description: 'Transforming conventional project exhibitions into a high-octane 36 / 48-Hour SDG & Industry Innovation Hackathon. Direct industry problem statements from Ashok Leyland, Renault Nissan, L&T Valves, and UN SDG targets with peer-reviewed publication in the official VISAI 2027 Innovation Souvenir.'
+    },
+    tracks: {
+      title: 'Dual Release Track System',
+      description: 'Choose your domain. Software teams build from scratch on-spot; Hardware teams get 7-10 days for component sourcing and architecture.'
+    },
+    sdgs: {
+      title: 'UN SDG & Industry Mapped Matrix',
+      description: 'Every problem statement is directly mapped to a United Nations Sustainable Development Goal and sponsored by a leading corporation.'
+    },
+    timeline: {
+      title: 'Hackathon Operations Timeline',
+      description: 'Strict 4-Gate internal evaluation system during the 36/48 hour hackathon.'
+    },
+    stalls: {
+      title: 'Interactive Expo & Tech Stalls',
+      description: 'Experience innovation hands-on. Explore leading tech demonstrations, food stalls, and interactive showcases.'
+    }
+  });
 
   // Handle direct role selection from Credentials banner
   const handleSelectRole = (role) => {
@@ -45,79 +67,76 @@ export default function App() {
     setProblemStatementsList(prev => [newProb, ...prev]);
   };
 
+  const handleBulkAddProblemStatements = (newProbs) => {
+    setProblemStatementsList(prev => [...newProbs, ...prev]);
+  };
+
   const handleTriggerSouvenirCompilation = () => {
     // simulated compilation action
     setActiveTab('souvenir');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleUpdateSiteContent = (newContent) => {
+    setSiteContent(newContent);
+  };
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       
-      {/* 0. DRAFT DATA FEED TICKER ON TOP */}
-      <DraftDataTicker
-        onSelectRole={handleSelectRole}
-      />
+      {/* 1. TOP FLOATING CREDENTIALS BANNER (Only in public view) */}
+      {!currentRole && (
+        <CredentialsBanner
+          currentRole={currentRole}
+          onSelectRole={handleSelectRole}
+          onOpenAuthModal={() => setIsAuthModalOpen(true)}
+          onResetToPublic={handleLogout}
+        />
+      )}
 
-      {/* 1. TOP FLOATING CREDENTIALS BANNER (Quick 1-Click Role Switcher) */}
-      <CredentialsBanner
-        currentRole={currentRole}
-        onSelectRole={handleSelectRole}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
-        onResetToPublic={handleLogout}
-      />
-
-      {/* 2. STICKY NAVBAR */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        currentRole={currentRole}
-        onLogout={handleLogout}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
-      />
+      {/* 2. STICKY PUBLIC NAVBAR (Only in public view - hidden after login as requested) */}
+      {!currentRole && (
+        <Navbar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          currentRole={currentRole}
+          onLogout={handleLogout}
+          onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        />
+      )}
 
       {/* 3. MAIN CONTENT AREA */}
       <main style={{ flex: 1 }}>
         
         {/* If user is in a dedicated Role Portal View */}
         {activeTab === 'portal' && currentRole && (
-          <div style={{ paddingBottom: '3rem' }}>
-            <div style={{
-              background: '#ffffff',
-              borderBottom: '1px solid #e2e8f0',
-              padding: '0.75rem 0',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-            }}>
-              <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: '0.85rem', color: '#475569' }}>
-                  Logged in role: <strong style={{ color: '#0f172a', textTransform: 'capitalize' }}>{currentRole}</strong> • Switch any role using the banner above
-                </div>
-                <button
-                  onClick={() => setActiveTab('overview')}
-                  className="btn btn-sm btn-secondary"
-                >
-                  ← Return to Public Event Site
-                </button>
-              </div>
-            </div>
+          <div style={{ paddingBottom: '3rem', paddingTop: currentRole ? '1rem' : '1.5rem' }}>
 
             {currentRole === 'participant' && (
-              <ParticipantDashboard onPublishAbstractToSouvenir={handlePublishAbstractToSouvenir} />
+              <ParticipantDashboard 
+                onPublishAbstractToSouvenir={handlePublishAbstractToSouvenir} 
+                onLogout={handleLogout}
+              />
             )}
 
             {currentRole === 'admin' && (
               <AdminDashboard 
                 onAddProblemStatement={handleAddProblemStatement}
+                onBulkAddProblemStatements={handleBulkAddProblemStatements}
                 onTriggerSouvenirCompilation={handleTriggerSouvenirCompilation}
+                heroContent={siteContent.hero}
+                siteContent={siteContent}
+                onUpdateSiteContent={handleUpdateSiteContent}
+                onLogout={handleLogout}
               />
             )}
 
             {currentRole === 'jury' && (
-              <JuryDashboard />
+              <JuryDashboard onLogout={handleLogout} />
             )}
 
             {currentRole === 'coordinator' && (
-              <CoordinatorDashboard />
+              <CoordinatorDashboard onLogout={handleLogout} />
             )}
           </div>
         )}
@@ -128,28 +147,37 @@ export default function App() {
             {activeTab === 'overview' && (
               <>
                 <Hero
-                  onExploreProblems={() => setActiveTab('problems')}
+                  heroContent={siteContent.hero}
+                  onExploreProblems={() => {
+                    if (currentRole) setActiveTab('problems');
+                    else setIsAuthModalOpen(true);
+                  }}
                   onEnterPortal={() => {
                     if (currentRole) setActiveTab('portal');
                     else setIsAuthModalOpen(true);
                   }}
-                  onOpenSouvenir={() => setActiveTab('souvenir')}
+                  onOpenSouvenir={() => {
+                    if (currentRole) setActiveTab('souvenir');
+                    else setIsAuthModalOpen(true);
+                  }}
                 />
-                <TrackComparison />
+                <TrackComparison content={siteContent.tracks} />
                 <ProblemStatements onSelectProblem={() => {
                   setCurrentRole('participant');
                   setActiveTab('portal');
                 }} />
-                <SdgMatrix onFilterBySdg={() => setActiveTab('problems')} />
-                <HackathonTimeline />
-                <SouvenirBook additionalArticles={additionalSouvenirArticles} />
-                <StallsExpo />
+                <SdgMatrix content={siteContent.sdgs} onFilterBySdg={() => setActiveTab('problems')} />
+                <HackathonTimeline content={siteContent.timeline} />
+                {currentRole && currentRole !== 'participant' && (
+                  <SouvenirBook additionalArticles={additionalSouvenirArticles} />
+                )}
+                <StallsExpo content={siteContent.stalls} />
               </>
             )}
 
             {activeTab === 'tracks' && (
               <div style={{ paddingTop: '2rem' }}>
-                <TrackComparison />
+                <TrackComparison content={siteContent.tracks} />
               </div>
             )}
 
@@ -164,25 +192,33 @@ export default function App() {
 
             {activeTab === 'sdgs' && (
               <div style={{ paddingTop: '2rem' }}>
-                <SdgMatrix onFilterBySdg={() => setActiveTab('problems')} />
+                <SdgMatrix content={siteContent.sdgs} onFilterBySdg={() => setActiveTab('problems')} />
               </div>
             )}
 
             {activeTab === 'timeline' && (
               <div style={{ paddingTop: '2rem' }}>
-                <HackathonTimeline />
+                <HackathonTimeline content={siteContent.timeline} />
               </div>
             )}
 
             {activeTab === 'souvenir' && (
               <div style={{ paddingTop: '2rem' }}>
-                <SouvenirBook additionalArticles={additionalSouvenirArticles} />
+                {currentRole && currentRole !== 'participant' ? (
+                  <SouvenirBook additionalArticles={additionalSouvenirArticles} />
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
+                    <h3 style={{ marginBottom: '1rem', fontSize: '1.5rem', fontWeight: 700 }}>Login Required</h3>
+                    <p style={{ marginBottom: '1.5rem', color: '#64748b' }}>You must be logged in to view the Innovation Souvenir.</p>
+                    <button className="btn btn-primary" onClick={() => setIsAuthModalOpen(true)}>Login to Access</button>
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'stalls' && (
               <div style={{ paddingTop: '2rem' }}>
-                <StallsExpo />
+                <StallsExpo content={siteContent.stalls} />
               </div>
             )}
           </>
@@ -190,9 +226,10 @@ export default function App() {
 
       </main>
 
-      {/* 4. FOOTER */}
-      <Footer onOpenAuthModal={() => setIsAuthModalOpen(true)} />
-
+      {/* 4. FOOTER (Hidden when logged in) */}
+      {!currentRole && (
+        <Footer onOpenAuthModal={() => setIsAuthModalOpen(true)} />
+      )}
       {/* 5. AUTH MODAL WITH PREFILL CREDENTIALS */}
       <AuthModal
         isOpen={isAuthModalOpen}

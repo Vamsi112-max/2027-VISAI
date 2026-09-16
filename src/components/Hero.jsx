@@ -32,7 +32,7 @@ const HERO_SLIDES = [
   {
     id: 2,
     badge: "Global Recognition & Incentives",
-    title: "₹5 Lakhs+ Cash Grants & Sponsored International Trip to Malaysia",
+    title: "Seed Grants & Sponsored International Trip to Malaysia",
     subtitle: "Vel Tech fully funds the top 2 performing student teams to present their engineering achievements at a leading Malaysian university.",
     highlight: "Plus patent filing assistance & Vel Tech TBI pre-seed incubation.",
     icon: Plane,
@@ -71,7 +71,7 @@ const HERO_SLIDES = [
   }
 ];
 
-export default function Hero({ onExploreProblems, onEnterPortal, onOpenSouvenir }) {
+export default function Hero({ onExploreProblems, onEnterPortal, onOpenSouvenir, heroContent }) {
   // Live Countdown state to VISAI Hackathon Kickoff
   const [timeLeft, setTimeLeft] = useState({
     days: 42,
@@ -126,8 +126,16 @@ export default function Hero({ onExploreProblems, onEnterPortal, onOpenSouvenir 
             color: '#0f172a',
             marginBottom: '1.25rem'
           }}>
-            Real Problems. Real Innovation.{' '}
-            <span className="gradient-text-cyan">Real Impact.</span>
+            {heroContent?.title.split('.').map((sentence, idx, arr) => (
+              <React.Fragment key={idx}>
+                {idx === arr.length - 2 ? (
+                  <span className="gradient-text-cyan">{sentence}.</span>
+                ) : (
+                  sentence + (idx < arr.length - 1 ? '.' : '')
+                )}
+                {' '}
+              </React.Fragment>
+            ))}
           </h1>
 
           <p style={{
@@ -137,7 +145,7 @@ export default function Hero({ onExploreProblems, onEnterPortal, onOpenSouvenir 
             maxWidth: '820px',
             margin: '0 auto'
           }}>
-            Transforming conventional project exhibitions into a high-octane <strong>36 / 48-Hour SDG & Industry Innovation Hackathon</strong>. Direct industry problem statements from Ashok Leyland, Renault Nissan, L&T Valves, and UN SDG targets with peer-reviewed publication in the official <strong>VISAI 2027 Innovation Souvenir</strong>.
+            {heroContent?.description}
           </p>
         </div>
 
@@ -384,10 +392,10 @@ export default function Hero({ onExploreProblems, onEnterPortal, onOpenSouvenir 
             {/* Stat 1 */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#d97706', fontFamily: 'var(--font-display)' }}>
-                ₹5 Lakhs+
+                Awards
               </div>
               <div style={{ fontSize: '0.825rem', color: '#475569', fontWeight: 600 }}>
-                Cash Prizes & Seed Grants
+                Seed Grants & Incubation Support
               </div>
             </div>
 

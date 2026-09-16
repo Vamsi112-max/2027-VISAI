@@ -13,7 +13,7 @@ import {
   Zap
 } from 'lucide-react';
 
-export default function TrackComparison() {
+export default function TrackComparison({ content }) {
   const [activeView, setActiveView] = useState('both'); // 'both', 'software', 'hardware'
 
   return (
@@ -26,10 +26,10 @@ export default function TrackComparison() {
             <span>Dual Innovation Tracks</span>
           </div>
           <h2 className="section-title">
-            Structured for <span className="gradient-text-cyan">Real Impact</span> & Excellence
+            {content?.title || "Structured for Excellence"}
           </h2>
           <p className="section-subtitle">
-            To ensure fair competition, optimal resource allocation, and authentic hackathon development, VISAI 2027 operates under two strictly separated tracks.
+            {content?.description || "To ensure fair competition, optimal resource allocation, and authentic hackathon development, VISAI 2027 operates under two strictly separated tracks."}
           </p>
         </div>
 

@@ -12,7 +12,7 @@ import {
   Trophy 
 } from 'lucide-react';
 
-export default function HackathonTimeline() {
+export default function HackathonTimeline({ content }) {
   const [activeTab, setActiveTab] = useState('rounds'); // 'rounds' or 'lifecycle'
 
   const lifecycleSteps = [
@@ -63,10 +63,10 @@ export default function HackathonTimeline() {
             <span>End-to-End Innovation Process</span>
           </div>
           <h2 className="section-title">
-            The VISAI 2027 <span className="gradient-text-cyan">Hackathon Model</span>
+            {content?.title || "The Hackathon Model"}
           </h2>
           <p className="section-subtitle">
-            Moving beyond conventional science exhibitions to a time-pressured, industry-mentored, multi-stage innovation lifecycle.
+            {content?.description || "Moving beyond conventional science exhibitions to a time-pressured, industry-mentored, multi-stage innovation lifecycle."}
           </p>
         </div>
 
