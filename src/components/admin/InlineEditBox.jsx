@@ -11,7 +11,7 @@ export default function InlineEditBox({
   children,
   style = {},
   className = '',
-  as = 'div',
+  as = 'span',
 }) {
   const { user } = useAuth();
   const { isVisualEditMode, setActiveEditModal } = useSiteContent();
@@ -41,6 +41,7 @@ export default function InlineEditBox({
       onClick={handleClick}
       style={{
         position: 'relative',
+        display: as === 'span' ? 'inline-block' : undefined,
         cursor: 'pointer',
         outline: '2px dashed #FF5A36',
         outlineOffset: '4px',

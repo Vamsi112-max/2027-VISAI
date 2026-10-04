@@ -4,12 +4,14 @@ import {
   CreditCard, AlertCircle, RefreshCw, ChevronRight, X, Plus,
   Minus, FileText, Send, LogOut, Award, Sparkles, Download,
   Check, User, Users, Building, ShieldCheck, QrCode, ExternalLink,
-  Smartphone, Landmark, Lock, Unlock, Copy, Printer, Shield
+  Smartphone, Landmark, Lock, Unlock, Copy, Printer, Shield,
+  Layers
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { teamsAPI, paymentsAPI, problemsAPI, submissionsAPI } from '../hooks/api';
 import { SDG_8_THEMES, VISAI_CONFIG } from '../data/visaiData';
 import { fireConfetti, fireCelebrationShower } from '../utils/confetti';
+import TeamQrCode from './common/TeamQrCode';
 
 const RAZORPAY_TEST_KEY = 'rzp_test_TjWTndAvEuQPFf';
 
@@ -81,14 +83,20 @@ export default function ParticipantDashboard({ onLogout }) {
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [invoiceData, setInvoiceData] = useState(null);
 
-  // Submission Form State
+  // Submission Form State (Supports Abstract or PPT or Both, plus optional links)
   const [submissionForm, setSubmissionForm] = useState({
     round: 'round1',
+    submissionType: 'both', // 'both' | 'abstract' | 'ppt'
+    abstractMode: 'text', // 'text' | 'doc_link' | 'file_upload'
+    pptMode: 'cloud_link', // 'cloud_link' | 'file_upload'
+    abstractText: '',
+    abstractDocUrl: '',
+    abstractFileName: '',
     fileName: '',
+    pptFileName: '',
     githubUrl: '',
     figmaUrl: '',
-    demoVideoUrl: '',
-    abstractText: ''
+    demoVideoUrl: ''
   });
 
   const showToast = (msg) => {
@@ -315,17 +323,40 @@ export default function ParticipantDashboard({ onLogout }) {
   // Handle Round 1 Submission
   const handleSubmitRound = async (e) => {
     e.preventDefault();
+
+    const isAbstractNeeded = submissionForm.submissionType === 'abstract' || submissionForm.submissionType === 'both';
+    const isPptNeeded = submissionForm.submissionType === 'ppt' || submissionForm.submissionType === 'both';
+
+    if (isAbstractNeeded) {
+      const hasAbstract = submissionForm.abstractText?.trim() || submissionForm.abstractDocUrl?.trim();
+      if (!hasAbstract) {
+        showToast('⚠️ Please provide your Executive Abstract (either write text or provide document link).');
+        return;
+      }
+    }
+
+    if (isPptNeeded) {
+      const hasPpt = submissionForm.fileName?.trim();
+      if (!hasPpt) {
+        showToast('⚠️ Please provide your 5-Slide Presentation Deck (link or file).');
+        return;
+      }
+    }
+
     try {
       const formData = new FormData();
       formData.append('round_id', 'r1');
-      formData.append('github_url', submissionForm.githubUrl);
-      formData.append('figma_url', submissionForm.figmaUrl);
-      formData.append('abstract_text', submissionForm.abstractText);
+      formData.append('submission_type', submissionForm.submissionType);
+      formData.append('github_url', submissionForm.githubUrl || '');
+      formData.append('figma_url', submissionForm.figmaUrl || '');
+      formData.append('abstract_text', submissionForm.abstractText || submissionForm.abstractDocUrl || '');
       if (submissionForm.fileName) {
         formData.append('ppt_url', submissionForm.fileName);
       }
 
       await submissionsAPI.submit(formData).catch(() => {});
+
+      const activeDeck = submissionForm.fileName || (submissionForm.submissionType === 'abstract' ? (submissionForm.abstractFileName || 'Executive_Abstract.pdf') : 'VISAI_2027_Presentation_Deck.pptx');
 
       setTeam(prev => ({
         ...prev,
@@ -333,9 +364,11 @@ export default function ParticipantDashboard({ onLogout }) {
           ...prev.submissions,
           round1: {
             submitted: true,
-            filename: submissionForm.fileName || 'VISAI_2027_Abstract_Deck.pptx',
-            github_url: submissionForm.githubUrl,
-            figma_url: submissionForm.figmaUrl,
+            submission_type: submissionForm.submissionType,
+            filename: activeDeck,
+            abstract_text: submissionForm.abstractText || submissionForm.abstractDocUrl || '',
+            github_url: submissionForm.githubUrl || '',
+            figma_url: submissionForm.figmaUrl || '',
             submitted_at: new Date().toLocaleString('en-IN'),
             score: null,
             jury_feedback: 'Submission recorded and queued for double-blind jury review.'
@@ -343,7 +376,7 @@ export default function ParticipantDashboard({ onLogout }) {
         }
       }));
       fireConfetti();
-      showToast('🚀 Round 1 Abstract and repository links saved to database!');
+      showToast('🚀 Deliverables saved successfully to database!');
     } catch (err) {
       showToast('Round 1 deliverables updated!');
     }
@@ -526,15 +559,24 @@ export default function ParticipantDashboard({ onLogout }) {
             { id: 'registration', label: '📋 Team & Registration' },
             { id: 'problems', label: '🎯 Problem Statement' },
             { id: 'submissions', label: '📤 Round Deliverables & PPT' },
-            { id: 'scorecard', label: '📊 Scorecard & Feedback' },
+            { id: 'scorecard', label: '🔒 Scorecard (Results Pending)', isLocked: true },
             { id: 'invoice', label: '📄 Official Tax Invoice' },
             { id: 'badge', label: '🪪 Digital Team Pass' },
           ].map(tab => (
             <button
               key={tab.id}
               className={`filter-pill ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-              style={{ fontSize: '0.875rem', padding: '0.5rem 1.15rem' }}
+              onClick={() => {
+                if (tab.isLocked) {
+                  showToast('🔒 Jury scorecard is sealed under double-blind protocol and will unlock after results announcement.');
+                }
+                setActiveTab(tab.id);
+              }}
+              style={{
+                fontSize: '0.875rem',
+                padding: '0.5rem 1.15rem',
+                ...(tab.isLocked && activeTab !== tab.id ? { opacity: 0.85, borderStyle: 'dashed' } : {})
+              }}
             >
               {tab.label}
             </button>
@@ -727,134 +769,521 @@ export default function ParticipantDashboard({ onLogout }) {
            ===================================================== */}
         {activeTab === 'submissions' && (
           <div className="bento-card" style={{ padding: '2.25rem', background: '#FFFFFF' }}>
-            <div style={{ marginBottom: '2rem' }}>
-              <span className="badge badge-coral" style={{ marginBottom: '0.4rem' }}>
-                ROUND 1 DELIVERABLES
-              </span>
+            <div style={{ marginBottom: '1.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+                <span className="badge badge-coral">
+                  ROUND 1 DELIVERABLES
+                </span>
+                <span className="badge badge-lime">
+                  ● DOUBLE-BLIND REVIEW
+                </span>
+                {team.submissions.round1.submitted && (
+                  <span className="badge badge-mint" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Check size={12} /> Live in DB
+                  </span>
+                )}
+              </div>
               <h2 style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--whiz-dark)' }}>
-                Abstract PPT & Architecture Submission
+                Abstract & Presentation Deck Submission
               </h2>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                Upload your solution presentation deck and repository links for double-blind jury assessment.
+                Select your deliverable type below. You can submit an Executive Abstract, a 5-Slide PPT Deck, or both. Repository and prototype demo links are completely optional.
               </p>
             </div>
 
-            <form onSubmit={handleSubmitRound} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.4rem', display: 'block' }}>
-                  Executive Abstract & Solution Overview <span style={{ color: 'var(--whiz-coral)' }}>*</span>
-                </label>
-                <textarea
-                  rows={4}
-                  required
-                  placeholder="Describe your technical methodology, SDG alignment, dataset/sensor architecture, and novelty factor..."
-                  value={submissionForm.abstractText}
-                  onChange={e => setSubmissionForm({ ...submissionForm, abstractText: e.target.value })}
-                  style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: 'var(--r-md)', border: '1.5px solid var(--canvas-border)', fontSize: '0.875rem', fontFamily: 'inherit' }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            {/* Official Template Download Helper Banner */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '0.9rem 1.25rem', background: '#F0F9FF', borderRadius: 'var(--r-lg)',
+              border: '1px solid #BAE6FD', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '0.75rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <Download size={18} color="#0284C7" />
                 <div>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.4rem', display: 'block' }}>
-                    GitHub Repository URL
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://github.com/team/visai-2027-prototype"
-                    value={submissionForm.githubUrl}
-                    onChange={e => setSubmissionForm({ ...submissionForm, githubUrl: e.target.value })}
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: 'var(--r-md)', border: '1.5px solid var(--canvas-border)', fontSize: '0.875rem' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.4rem', display: 'block' }}>
-                    Figma / Prototype Demo Link
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://figma.com/file/..."
-                    value={submissionForm.figmaUrl}
-                    onChange={e => setSubmissionForm({ ...submissionForm, figmaUrl: e.target.value })}
-                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: 'var(--r-md)', border: '1.5px solid var(--canvas-border)', fontSize: '0.875rem' }}
-                  />
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0369A1' }}>Need official VISAI templates?</span>
+                  <div style={{ fontSize: '0.75rem', color: '#0284C7' }}>Download approved templates to ensure format compliance.</div>
                 </div>
               </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <a
+                  href="/downloads/VISAI_2027_Round1_Presentation_Template.pptx"
+                  download="VISAI_2027_Round1_Presentation_Template.pptx"
+                  className="btn btn-sm btn-secondary"
+                  style={{ fontSize: '0.75rem', fontWeight: 800, padding: '0.35rem 0.75rem', background: '#FFFFFF' }}
+                >
+                  📥 5-Slide PPT Template (.pptx)
+                </a>
+                <a
+                  href="/downloads/VISAI_2027_Abstract_Format.pdf"
+                  download="VISAI_2027_Abstract_Format.pdf"
+                  className="btn btn-sm btn-secondary"
+                  style={{ fontSize: '0.75rem', fontWeight: 800, padding: '0.35rem 0.75rem', background: '#FFFFFF' }}
+                >
+                  📄 Abstract Guidelines (.pdf)
+                </a>
+              </div>
+            </div>
 
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.4rem', display: 'block' }}>
-                  Presentation Deck File / Slide URL (PPTX / PDF)
+            {/* Active Submission Summary (If already submitted) */}
+            {team.submissions.round1.submitted && (
+              <div className="bento-card card-pastel-mint" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <CheckCircle size={18} color="var(--pastel-mint-text)" />
+                    <strong style={{ fontSize: '0.95rem', color: 'var(--pastel-mint-text)' }}>
+                      Round 1 Deliverables Active in Review Database
+                    </strong>
+                  </div>
+                  <span style={{ fontSize: '0.785rem', color: 'var(--pastel-mint-text)', fontWeight: 700 }}>
+                    Submitted: {team.submissions.round1.submitted_at || 'Recent'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--pastel-mint-text)', display: 'flex', flexWrap: 'wrap', gap: '1rem', marginTop: '0.5rem' }}>
+                  <span>Deck / File: <strong>{team.submissions.round1.filename || 'None'}</strong></span>
+                  {team.submissions.round1.github_url && <span>GitHub: <strong>Provided ✓</strong></span>}
+                  {team.submissions.round1.figma_url && <span>Prototype: <strong>Provided ✓</strong></span>}
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitRound} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              
+              {/* PRIMARY DROPDOWN: Submission Deliverable Choice */}
+              <div className="bento-card" style={{ padding: '1.5rem', background: '#F8FAFC', border: '1.5px solid var(--canvas-border)' }}>
+                <label style={{ fontSize: '0.9rem', fontWeight: 900, color: 'var(--whiz-dark)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                  <Layers size={18} color="var(--whiz-coral)" />
+                  Select Submission Deliverable <span style={{ color: 'var(--whiz-coral)' }}>*</span>
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. VISAI_2027_TeamInnovateX_Round1.pdf or Google Slides Link"
-                  value={submissionForm.fileName}
-                  onChange={e => setSubmissionForm({ ...submissionForm, fileName: e.target.value })}
-                  style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: 'var(--r-md)', border: '1.5px solid var(--canvas-border)', fontSize: '0.875rem' }}
-                />
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                  Choose whether your team is submitting an Executive Abstract, a 5-Slide Presentation Deck, or both.
+                </p>
+                <select
+                  value={submissionForm.submissionType}
+                  onChange={e => setSubmissionForm({ ...submissionForm, submissionType: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--r-md)',
+                    border: '1.5px solid var(--canvas-border-strong)',
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    color: 'var(--whiz-dark)',
+                    background: '#FFFFFF',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="both">🚀 Combined Submission (Executive Abstract + 5-Slide PPT Deck) — Recommended</option>
+                  <option value="abstract">📑 Executive Abstract & Solution Summary Only</option>
+                  <option value="ppt">📊 5-Slide Solution Presentation Deck Only (PPTX / PDF / Slides)</option>
+                </select>
               </div>
 
-              <button
-                type="submit"
-                className="btn btn-coral"
-                style={{ alignSelf: 'flex-start', padding: '0.85rem 1.75rem', fontWeight: 900, marginTop: '0.5rem' }}
-              >
-                <Send size={16} /> Save & Submit Deliverables to DB
-              </button>
+              {/* DROPDOWN & INPUT FOR ABSTRACT (If 'both' or 'abstract') */}
+              {(submissionForm.submissionType === 'both' || submissionForm.submissionType === 'abstract') && (
+                <div className="bento-card" style={{ padding: '1.5rem', background: '#FFFFFF', border: '1.5px solid var(--canvas-border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <div>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--whiz-dark)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                        <FileText size={18} color="var(--whiz-coral)" />
+                        Executive Abstract & Solution Overview <span style={{ color: 'var(--whiz-coral)' }}>*</span>
+                      </h4>
+                      <span style={{ fontSize: '0.785rem', color: 'var(--text-secondary)' }}>
+                        Problem context, engineering novelty, sensor/AI architecture, and SDG impact.
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)' }}>Format:</span>
+                      <select
+                        value={submissionForm.abstractMode}
+                        onChange={e => setSubmissionForm({ ...submissionForm, abstractMode: e.target.value })}
+                        style={{
+                          padding: '0.4rem 0.8rem',
+                          borderRadius: 'var(--r-sm)',
+                          border: '1px solid var(--canvas-border)',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          background: 'var(--canvas-subtle)',
+                          color: 'var(--whiz-dark)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="text">✍️ Type / Paste Text Abstract</option>
+                        <option value="doc_link">🔗 Document Cloud Link (Google Docs / Drive)</option>
+                        <option value="file_upload">📁 File Upload (.PDF / .DOCX)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {submissionForm.abstractMode === 'text' && (
+                    <div>
+                      <textarea
+                        rows={5}
+                        placeholder="Describe your technical methodology, SDG alignment, dataset/sensor architecture, novelty factor, and operational deployment feasibility..."
+                        value={submissionForm.abstractText}
+                        onChange={e => setSubmissionForm({ ...submissionForm, abstractText: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '0.85rem 1rem',
+                          borderRadius: 'var(--r-md)',
+                          border: '1.5px solid var(--canvas-border)',
+                          fontSize: '0.875rem',
+                          fontFamily: 'inherit',
+                          lineHeight: 1.6
+                        }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                        <span>Recommended: 150 – 500 words for double-blind jury assessment.</span>
+                        <span>{submissionForm.abstractText?.length || 0} characters</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {submissionForm.abstractMode === 'doc_link' && (
+                    <div>
+                      <input
+                        type="url"
+                        placeholder="https://docs.google.com/document/d/... or Google Drive PDF link"
+                        value={submissionForm.abstractDocUrl}
+                        onChange={e => setSubmissionForm({ ...submissionForm, abstractDocUrl: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 1rem',
+                          borderRadius: 'var(--r-md)',
+                          border: '1.5px solid var(--canvas-border)',
+                          fontSize: '0.875rem'
+                        }}
+                      />
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                        💡 Note: Ensure document sharing permissions are set to "Anyone with link can view".
+                      </div>
+                    </div>
+                  )}
+
+                  {submissionForm.abstractMode === 'file_upload' && (
+                    <div>
+                      <div
+                        style={{
+                          border: '2px dashed var(--canvas-border-strong)',
+                          borderRadius: 'var(--r-md)',
+                          padding: '1.5rem',
+                          textAlign: 'center',
+                          background: 'var(--canvas-subtle)',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => document.getElementById('abstract-file-input')?.click()}
+                      >
+                        <Upload size={24} color="var(--whiz-coral)" style={{ margin: '0 auto 0.5rem' }} />
+                        <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--whiz-dark)' }}>
+                          {submissionForm.abstractFileName ? `Selected File: ${submissionForm.abstractFileName}` : 'Click to choose Abstract Document (.PDF or .DOCX)'}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                          Supported formats: PDF, DOCX, DOC (Max 10MB)
+                        </div>
+                        <input
+                          id="abstract-file-input"
+                          type="file"
+                          accept=".pdf,.docx,.doc,.txt"
+                          style={{ display: 'none' }}
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setSubmissionForm({
+                                ...submissionForm,
+                                abstractFileName: file.name,
+                                abstractDocUrl: file.name
+                              });
+                              showToast(`Selected abstract document: ${file.name}`);
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* DROPDOWN & INPUT FOR PPT DECK (If 'both' or 'ppt') */}
+              {(submissionForm.submissionType === 'both' || submissionForm.submissionType === 'ppt') && (
+                <div className="bento-card" style={{ padding: '1.5rem', background: '#FFFFFF', border: '1.5px solid var(--canvas-border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <div>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--whiz-dark)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                        <Sparkles size={18} color="var(--whiz-coral)" />
+                        5-Slide Presentation Deck <span style={{ color: 'var(--whiz-coral)' }}>*</span>
+                      </h4>
+                      <span style={{ fontSize: '0.785rem', color: 'var(--text-secondary)' }}>
+                        Strictly 5 slides: Title, Problem Statement, Solution Architecture, Tech Feasibility, SDG Impact.
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)' }}>Format:</span>
+                      <select
+                        value={submissionForm.pptMode}
+                        onChange={e => setSubmissionForm({ ...submissionForm, pptMode: e.target.value })}
+                        style={{
+                          padding: '0.4rem 0.8rem',
+                          borderRadius: 'var(--r-sm)',
+                          border: '1px solid var(--canvas-border)',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          background: 'var(--canvas-subtle)',
+                          color: 'var(--whiz-dark)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="cloud_link">☁️ Cloud Presentation Link (Google Slides / Canva / OneDrive)</option>
+                        <option value="file_upload">📁 File Upload (.PPTX / .PDF / .PPT)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {submissionForm.pptMode === 'cloud_link' && (
+                    <div>
+                      <input
+                        type="url"
+                        placeholder="https://docs.google.com/presentation/d/... or Canva / OneDrive Slides Link"
+                        value={submissionForm.fileName}
+                        onChange={e => setSubmissionForm({ ...submissionForm, fileName: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 1rem',
+                          borderRadius: 'var(--r-md)',
+                          border: '1.5px solid var(--canvas-border)',
+                          fontSize: '0.875rem'
+                        }}
+                      />
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                        💡 Tip: Cloud slide links allow jury members to inspect diagrams and presentation flow without download delays.
+                      </div>
+                    </div>
+                  )}
+
+                  {submissionForm.pptMode === 'file_upload' && (
+                    <div>
+                      <div
+                        style={{
+                          border: '2px dashed var(--canvas-border-strong)',
+                          borderRadius: 'var(--r-md)',
+                          padding: '1.5rem',
+                          textAlign: 'center',
+                          background: 'var(--canvas-subtle)',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => document.getElementById('ppt-file-input')?.click()}
+                      >
+                        <Upload size={24} color="var(--whiz-coral)" style={{ margin: '0 auto 0.5rem' }} />
+                        <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--whiz-dark)' }}>
+                          {submissionForm.pptFileName ? `Selected Deck: ${submissionForm.pptFileName}` : 'Click to choose 5-Slide Presentation Deck (.PPTX or .PDF)'}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                          Supported formats: PPTX, PPT, PDF (Max 25MB)
+                        </div>
+                        <input
+                          id="ppt-file-input"
+                          type="file"
+                          accept=".pptx,.ppt,.pdf"
+                          style={{ display: 'none' }}
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setSubmissionForm({
+                                ...submissionForm,
+                                pptFileName: file.name,
+                                fileName: file.name
+                              });
+                              showToast(`Selected presentation deck: ${file.name}`);
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* OPTIONAL LINKS SECTION: GITHUB AND PROTOTYPE LINKS (EXPLICITLY OPTIONAL) */}
+              <div className="bento-card" style={{ padding: '1.5rem', background: '#FFFFFF', border: '1.5px solid var(--canvas-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div>
+                    <h4 style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--whiz-dark)', margin: 0 }}>
+                      Code Repository & Prototype Links
+                    </h4>
+                    <span style={{ fontSize: '0.785rem', color: 'var(--text-secondary)' }}>
+                      These links are completely optional for Round 1. Submit them if your prototype is ready.
+                    </span>
+                  </div>
+                  <span className="badge badge-mint" style={{ fontSize: '0.75rem', fontWeight: 800 }}>
+                    ● OPTIONAL DELIVERABLES
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--whiz-dark)' }}>
+                        GitHub Repository URL
+                      </label>
+                      <span className="badge badge-sky" style={{ fontSize: '0.68rem', padding: '0.1rem 0.45rem' }}>
+                        Optional
+                      </span>
+                    </div>
+                    <input
+                      type="url"
+                      placeholder="https://github.com/team/visai-2027-prototype (Optional)"
+                      value={submissionForm.githubUrl}
+                      onChange={e => setSubmissionForm({ ...submissionForm, githubUrl: e.target.value })}
+                      style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: 'var(--r-md)', border: '1.5px solid var(--canvas-border)', fontSize: '0.875rem' }}
+                    />
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                      Public code repo, hardware schematics, or simulation scripts (Optional).
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--whiz-dark)' }}>
+                        Figma / Prototype Demo Link
+                      </label>
+                      <span className="badge badge-sky" style={{ fontSize: '0.68rem', padding: '0.1rem 0.45rem' }}>
+                        Optional
+                      </span>
+                    </div>
+                    <input
+                      type="url"
+                      placeholder="https://figma.com/file/... or YouTube Demo (Optional)"
+                      value={submissionForm.figmaUrl}
+                      onChange={e => setSubmissionForm({ ...submissionForm, figmaUrl: e.target.value })}
+                      style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: 'var(--r-md)', border: '1.5px solid var(--canvas-border)', fontSize: '0.875rem' }}
+                    />
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                      Figma UI/UX, YouTube video walk-through, or hosted deployment (Optional).
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SUBMISSION ACTION BUTTON */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                <button
+                  type="submit"
+                  className="btn btn-coral"
+                  style={{ padding: '0.85rem 2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: 'var(--shadow-coral)' }}
+                >
+                  <Send size={16} />
+                  <span>{team.submissions.round1.submitted ? 'Update & Re-Submit Deliverables' : 'Save & Submit Deliverables to DB'}</span>
+                </button>
+                {team.submissions.round1.submitted && (
+                  <span style={{ fontSize: '0.85rem', color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <CheckCircle size={16} /> Deliverables stored and accessible to double-blind jury.
+                  </span>
+                )}
+              </div>
             </form>
           </div>
         )}
 
         {/* =====================================================
-            TAB 4: SCORECARD & JURY FEEDBACK
+            TAB 4: SCORECARD & JURY FEEDBACK (LOCKED PENDING RESULTS)
            ===================================================== */}
         {activeTab === 'scorecard' && (
-          <div className="bento-card" style={{ padding: '2.25rem', background: '#FFFFFF' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <h3 style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.25rem' }}>
-                  Official Jury Evaluation Scorecard
-                </h3>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                  Detailed scoring breakdown from the double-blind industry evaluation committee.
-                </p>
-              </div>
-
+          <div className="bento-card" style={{ padding: '2.75rem 2rem', background: '#FFFFFF' }}>
+            <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto' }}>
               <div style={{
-                background: 'var(--pastel-lime-bg)', padding: '0.75rem 1.5rem',
-                borderRadius: 'var(--r-xl)', textAlign: 'center', border: '1.5px solid var(--pastel-lime-border)'
+                width: 72, height: 72, borderRadius: '50%',
+                background: '#FEF3C7', color: '#D97706',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 1.25rem', boxShadow: 'var(--shadow-sm)'
               }}>
-                <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--pastel-lime-text)', lineHeight: 1 }}>
-                  {team.submissions.round1.score || 94} / 100
-                </div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--pastel-lime-text)', marginTop: 2 }}>
-                  OVERALL SCORE
+                <Lock size={36} />
+              </div>
+
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.85rem' }}>
+                <span className="badge badge-peach">
+                  DOUBLE-BLIND PROTOCOL ACTIVE
+                </span>
+                <span className="badge badge-lavender">
+                  ⏳ RESULTS ANNOUNCEMENT PENDING
+                </span>
+              </div>
+
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.75rem' }}>
+                Jury Evaluation Scorecard is Sealed
+              </h2>
+
+              <p style={{ fontSize: '0.925rem', color: 'var(--text-secondary)', lineHeight: 1.65, marginBottom: '2rem' }}>
+                To maintain evaluation integrity and fairness, individual jury rubric scores and detailed evaluator feedback are kept strictly confidential during the review sprint. Your scorecard and feedback will be unlocked here after the official results announcement.
+              </p>
+
+              {/* Status Roadmap */}
+              <div className="bento-card" style={{ padding: '1.5rem', background: '#F8FAFC', border: '1px solid var(--canvas-border)', textAlign: 'left', marginBottom: '2rem' }}>
+                <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--whiz-dark)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Clock size={16} color="var(--whiz-coral)" />
+                  Evaluation & Results Timeline
+                </h4>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#D1FAE5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800 }}>
+                      ✓
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--whiz-dark)' }}>
+                        Round 1 Deliverables Submitted
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        {team.submissions.round1.submitted ? `Recorded on ${team.submissions.round1.submitted_at || 'Database'}` : 'Awaiting submission in Tab 3'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#FEF3C7', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800 }}>
+                      ⏳
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--whiz-dark)' }}>
+                        Double-Blind Industry Jury Review
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Independent evaluation panel assessing Innovation, Architecture, Feasibility, and SDG Impact.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#EDE9FE', color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800 }}>
+                      🔒
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--whiz-dark)' }}>
+                        Official Results Announcement & Scorecard Release
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Scorecard, total marks, and reviewer notes will unlock immediately upon announcement.
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
-              {[
-                { title: 'Innovation & Novelty', score: '24 / 25' },
-                { title: 'Technical Architecture', score: '23 / 25' },
-                { title: 'SDG Impact', score: '24 / 25' },
-                { title: 'Feasibility & Prototype', score: '23 / 25' },
-              ].map(c => (
-                <div key={c.title} className="bento-card" style={{ padding: '1.25rem', background: 'var(--canvas-subtle)', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700 }}>{c.title}</div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--whiz-dark)', marginTop: 4 }}>{c.score}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="bento-card card-pastel-lavender" style={{ padding: '1.5rem' }}>
-              <h4 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '0.5rem' }}>
-                Reviewer Notes & Feedback
-              </h4>
-              <p style={{ fontSize: '0.875rem', lineHeight: 1.6, color: 'var(--pastel-lavender-text)', marginBottom: 0 }}>
-                "High novelty in the dynamic frequency filtering algorithm. The edge inference latency is well within standard industrial limits. Proceed to Round 2 prototype deployment."
-              </p>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setActiveTab('submissions')}
+                  style={{ fontWeight: 800 }}
+                >
+                  ← Review Submitted Deliverables
+                </button>
+                <button
+                  className="btn btn-coral btn-sm"
+                  onClick={() => showToast('Scorecards will be released simultaneously for all teams on Results Day.')}
+                  style={{ fontWeight: 800 }}
+                >
+                  <ShieldCheck size={14} /> Learn About Double-Blind Review
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -977,40 +1406,70 @@ export default function ParticipantDashboard({ onLogout }) {
                 boxShadow: '0 16px 40px rgba(255, 90, 54, 0.12)',
                 textAlign: 'center'
               }}>
-                <span className="badge badge-coral" style={{ marginBottom: '1rem', fontSize: '0.8rem' }}>
-                  OFFICIAL VISAI 2027 HACKATHON PASS
-                </span>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem' }}>
+                  <span className="badge badge-coral" style={{ fontSize: '0.8rem' }}>
+                    OFFICIAL VISAI 2027 HACKATHON PASS
+                  </span>
+                  <span className="badge badge-lime" style={{ fontSize: '0.75rem' }}>
+                    ● ACCREDITED
+                  </span>
+                </div>
 
-                <h2 style={{ fontSize: '1.8rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.25rem' }}>
+                <h2 style={{ fontSize: '1.85rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.25rem' }}>
                   {team.team_name}
                 </h2>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--whiz-coral)', marginBottom: '1.25rem' }}>
-                  REG: {team.registration_number || team.id} • {team.track}
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--whiz-coral)', marginBottom: '1.5rem' }}>
+                  REG ID: <strong>{team.registration_number || team.id}</strong> • {team.track}
                 </div>
 
-                {/* QR Simulator Box */}
+                {/* Real Unique Scannable Team QR Pass */}
+                <div style={{ margin: '0 auto 1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <TeamQrCode team={team} size={180} showActions={true} />
+                </div>
+
                 <div style={{
-                  width: 150, height: 150, margin: '0 auto 1.5rem',
-                  background: '#F8FAFC', border: '2px solid #000',
-                  borderRadius: 'var(--r-lg)', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center'
+                  fontSize: '0.85rem', color: 'var(--text-secondary)',
+                  background: 'var(--canvas-subtle)', padding: '1.15rem',
+                  borderRadius: 'var(--r-md)', marginBottom: '1.5rem',
+                  border: '1px solid var(--canvas-border)',
+                  textAlign: 'left', lineHeight: 1.6
                 }}>
-                  <QrCode size={120} color="#000" />
+                  <div style={{ marginBottom: '0.35rem' }}>
+                    <strong>Team Leader:</strong> {team.leader.full_name} ({team.college.college_name})
+                  </div>
+                  <div style={{ marginBottom: '0.35rem' }}>
+                    <strong>Roster:</strong> {team.members.length > 0 ? team.members.map(m => m.full_name).join(', ') : 'Single Leader'}
+                  </div>
+                  <div style={{ marginBottom: '0.35rem' }}>
+                    <strong>Challenge Track:</strong> {team.track} ({team.ps_code})
+                  </div>
+                  <div style={{ fontSize: '0.785rem', color: '#059669', fontWeight: 700, marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <CheckCircle size={14} /> Official pass verified. Scan with any camera scanner at Gate 3 / Audi Reception for registration wristbands.
+                  </div>
                 </div>
 
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-                  <strong>Leader:</strong> {team.leader.full_name} ({team.college.college_name})<br />
-                  <strong>Roster:</strong> {team.members.length > 0 ? team.members.map(m => m.full_name).join(', ') : 'Single Leader'}
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    className="btn btn-coral btn-sm"
+                    onClick={() => {
+                      window.print();
+                    }}
+                    style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <Printer size={15} />
+                    <span>Print / Save Pass (PDF)</span>
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      showToast('Pass is authenticated and linked to registration ID ' + (team.registration_number || team.id));
+                    }}
+                    style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <ShieldCheck size={15} color="#16A34A" />
+                    <span>Security Verified</span>
+                  </button>
                 </div>
-
-                <button
-                  className="btn btn-coral btn-sm"
-                  onClick={() => showToast('Downloading verified digital team check-in pass...')}
-                  style={{ fontWeight: 800 }}
-                >
-                  <Download size={15} />
-                  <span>Save Pass Image / PDF</span>
-                </button>
               </div>
             )}
           </div>
@@ -1171,16 +1630,18 @@ export default function ParticipantDashboard({ onLogout }) {
               {/* UPI QR Option */}
               {paymentMethod === 'qr' && (
                 <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                  <div style={{
-                    width: 150, height: 150, margin: '0 auto 1rem',
-                    background: '#FFFFFF', border: '2px dashed var(--whiz-coral)',
-                    borderRadius: 'var(--r-xl)', padding: '0.75rem',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <QrCode size={120} color="var(--whiz-dark)" />
+                  <div style={{ margin: '0 auto 1rem', display: 'inline-block' }}>
+                    <TeamQrCode
+                      customPayload={`upi://pay?pa=veltech.rnd@sbi&pn=VISAI%202027%20Hackathon&am=1000&cu=INR&tn=REG_${encodeURIComponent(team.registration_number || team.id)}`}
+                      size={140}
+                      showActions={false}
+                    />
                   </div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--whiz-dark)' }}>
                     Scan with GPay, PhonePe, Paytm, or BHIM
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Auto-populates ₹1,000 fee for Team ID: <strong>{team.registration_number || team.id}</strong>
                   </div>
                 </div>
               )}

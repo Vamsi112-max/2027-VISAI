@@ -62,7 +62,14 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth }) {
           {/* Logo */}
           <button
             className="whiz-logo"
-            onClick={() => { setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            onClick={() => {
+              if (user && (user.role === 'coordinator' || user.role === 'jury')) {
+                setActiveTab('dashboard');
+              } else {
+                setActiveTab('home');
+              }
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           >
             <div className="whiz-logo-icon">
               <Sparkles size={20} color="#fff" />
@@ -72,12 +79,12 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth }) {
                 VISAI<span style={{ color: 'var(--whiz-coral)' }}>.27</span>
               </span>
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                {content?.themeSettings?.institutionName || 'Vel Tech R&D'}
+                {user?.role === 'jury' ? '⚖️ Jury Portal' : user?.role === 'coordinator' ? '📋 Coordinator Portal' : (content?.themeSettings?.institutionName || 'Vel Tech R&D')}
               </span>
             </div>
           </button>
 
-          {/* Desktop Nav Links in pill container */}
+          {/* Desktop Nav Links in pill container for participants & public visitors */}
           {(!user || user.role === 'participant') && (
             <div className="whiz-nav-links">
               {allNavLinks.map(link => (
@@ -103,6 +110,30 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth }) {
                   )}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* Role specific header badges in center for Jury */}
+          {user?.role === 'jury' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: '#F5F3FF', padding: '0.45rem 1.15rem', borderRadius: 'var(--r-full)', border: '1px solid #DDD6FE' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#6D28D9', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                ⚖️ Evaluation Workspace
+              </span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7C3AED', background: '#EDE9FE', padding: '0.15rem 0.6rem', borderRadius: 'var(--r-full)' }}>
+                Double-Blind Scoring
+              </span>
+            </div>
+          )}
+
+          {/* Role specific header badges in center for Coordinator */}
+          {user?.role === 'coordinator' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: '#ECFDF5', padding: '0.45rem 1.15rem', borderRadius: 'var(--r-full)', border: '1px solid #A7F3D0' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#047857', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                📋 Coordinator Operations
+              </span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#059669', background: '#D1FAE5', padding: '0.15rem 0.6rem', borderRadius: 'var(--r-full)' }}>
+                Track & Desk Workspace
+              </span>
             </div>
           )}
 
@@ -272,42 +303,87 @@ export default function Navbar({ activeTab, setActiveTab, onOpenAuth }) {
             flexDirection: 'column',
             gap: '0.5rem'
           }}>
-            {allNavLinks.map(link => (
-              <button
-                key={link.id}
-                onClick={() => { setActiveTab(link.id); setMobileOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.75rem 1rem',
-                  borderRadius: 'var(--r-md)',
-                  background: activeTab === link.id ? 'var(--whiz-dark)' : 'transparent',
-                  color: activeTab === link.id ? '#FFFFFF' : 'var(--text-primary)',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  border: 'none',
-                  textAlign: 'left',
-                  cursor: 'pointer'
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  {getNavIcon(link.id)}
-                  {link.label}
-                </span>
-                {link.badge && (
-                  <span style={{
-                    background: 'var(--whiz-coral)',
-                    color: '#fff',
-                    fontSize: '0.65rem',
-                    padding: '0.1rem 0.45rem',
-                    borderRadius: 'var(--r-full)'
-                  }}>
-                    {link.badge}
+            {user && (user.role === 'coordinator' || user.role === 'jury') ? (
+              <>
+                <button
+                  onClick={() => { setActiveTab('dashboard'); setMobileOpen(false); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--r-md)',
+                    background: user.role === 'jury' ? '#7C3AED' : 'var(--whiz-coral)',
+                    color: '#FFFFFF',
+                    fontWeight: 800,
+                    fontSize: '0.9rem',
+                    border: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <User size={16} />
+                  <span>{user.role === 'jury' ? '⚖️ Jury Evaluation Portal' : '📋 Coordinator Operations'}</span>
+                </button>
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--r-md)',
+                    background: '#FEE2E2',
+                    color: '#DC2626',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    border: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <LogOut size={16} />
+                  <span>Sign Out</span>
+                </button>
+              </>
+            ) : (
+              allNavLinks.map(link => (
+                <button
+                  key={link.id}
+                  onClick={() => { setActiveTab(link.id); setMobileOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--r-md)',
+                    background: activeTab === link.id ? 'var(--whiz-dark)' : 'transparent',
+                    color: activeTab === link.id ? '#FFFFFF' : 'var(--text-primary)',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    border: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    {getNavIcon(link.id)}
+                    {link.label}
                   </span>
-                )}
-              </button>
-            ))}
+                  {link.badge && (
+                    <span style={{
+                      background: 'var(--whiz-coral)',
+                      color: '#fff',
+                      fontSize: '0.65rem',
+                      padding: '0.1rem 0.45rem',
+                      borderRadius: 'var(--r-full)'
+                    }}>
+                      {link.badge}
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
           </div>
         )}
       </div>

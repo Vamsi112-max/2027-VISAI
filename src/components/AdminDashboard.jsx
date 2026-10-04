@@ -16,6 +16,7 @@ import { SDG_8_THEMES, VISAI_CONFIG } from '../data/visaiData';
 import { fireConfetti } from '../utils/confetti';
 import ProblemStatementModal from './admin/ProblemStatementModal';
 import EmailDispatchModal from './admin/EmailDispatchModal';
+import TeamQrCode from './common/TeamQrCode';
 
 const OFFICIAL_ROUNDS = [
   { id: 'r1', round_number: 1, name: 'Round 1: Abstract & Problem Alignment PPT', status: 'active', deadline: '2027-02-15', total_submissions: 0 },
@@ -25,6 +26,8 @@ const OFFICIAL_ROUNDS = [
 
 export default function AdminDashboard({ onLogout }) {
   const { user } = useAuth();
+  const isCoordinator = user?.role === 'coordinator';
+
   const {
     startVisualEdit,
     content: siteContent,
@@ -38,6 +41,13 @@ export default function AdminDashboard({ onLogout }) {
   } = useSiteContent();
 
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'teams' | 'database' | 'builder' | 'problems' | 'jury' | 'rounds' | 'payments' | 'email' | 'audit'
+
+  // Safeguard: Restrict coordinators from viewing super-admin-only tabs
+  useEffect(() => {
+    if (isCoordinator && ['database', 'builder', 'audit'].includes(activeTab)) {
+      setActiveTab('overview');
+    }
+  }, [isCoordinator, activeTab]);
   const [stats, setStats] = useState({
     recent_activity: []
   });
@@ -394,19 +404,21 @@ export default function AdminDashboard({ onLogout }) {
         }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
-              <span className="badge badge-coral" style={{ fontSize: '0.75rem' }}>
-                SUPER ADMIN EXECUTIVE CONSOLE
+              <span className={`badge ${isCoordinator ? 'badge-mint' : 'badge-coral'}`} style={{ fontSize: '0.75rem' }}>
+                {isCoordinator ? 'COORDINATOR OPERATIONS CONSOLE' : 'SUPER ADMIN EXECUTIVE CONSOLE'}
               </span>
-              <span className={`badge ${dbStatus?.isTiDbConnected ? 'badge-lime' : 'badge-lavender'}`} style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                <Database size={12} />
-                {dbStatus?.isTiDbConnected ? 'TiDB Cloud Active' : 'SQLite Safety Mirror Active'}
-              </span>
+              {!isCoordinator && (
+                <span className={`badge ${dbStatus?.isTiDbConnected ? 'badge-lime' : 'badge-lavender'}`} style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Database size={12} />
+                  {dbStatus?.isTiDbConnected ? 'TiDB Cloud Active' : 'SQLite Safety Mirror Active'}
+                </span>
+              )}
             </div>
             <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--whiz-dark)' }}>
-              Command Center & Hackathon Administration
+              {isCoordinator ? 'Hackathon Coordinator Command Center' : 'Command Center & Hackathon Administration'}
             </h1>
             <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: 0 }}>
-              Logged in as <strong>{user?.full_name || 'Prof. Dr. P. Chandrakumar'}</strong> ({user?.email || 'admin@visai.in'})
+              Logged in as <strong>{user?.full_name || (isCoordinator ? 'Coordinator' : 'Admin')}</strong> ({user?.email || 'admin@visai.in'}) • {isCoordinator ? 'Event Operations & Team Desk' : 'Full Executive Authority'}
             </p>
           </div>
 
@@ -425,29 +437,33 @@ export default function AdminDashboard({ onLogout }) {
               <span>✉️ Send Mail</span>
             </button>
 
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => {
-                startVisualEdit();
-                window.dispatchEvent(new CustomEvent('visai:goto-home-edit'));
-              }}
-              style={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-              title="Launch Wix-Style Live Visual Page Editor"
-            >
-              <Edit3 size={15} />
-              <span>🎨 Admin Visual Edit</span>
-            </button>
+            {!isCoordinator && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  startVisualEdit();
+                  window.dispatchEvent(new CustomEvent('visai:goto-home-edit'));
+                }}
+                style={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                title="Launch Wix-Style Live Visual Page Editor"
+              >
+                <Edit3 size={15} />
+                <span>🎨 Admin Visual Edit</span>
+              </button>
+            )}
 
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={handleSyncSafetyBackup}
-              disabled={dbLoading}
-              style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-              title="Mirror database and store safe snapshot backup"
-            >
-              <HardDrive size={15} color="var(--whiz-coral)" />
-              <span>{dbLoading ? 'Backing Up...' : 'Sync Safety Backup'}</span>
-            </button>
+            {!isCoordinator && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={handleSyncSafetyBackup}
+                disabled={dbLoading}
+                style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                title="Mirror database and store safe snapshot backup"
+              >
+                <HardDrive size={15} color="var(--whiz-coral)" />
+                <span>{dbLoading ? 'Backing Up...' : 'Sync Safety Backup'}</span>
+              </button>
+            )}
 
             <button
               className="btn btn-secondary btn-sm"
@@ -490,18 +506,29 @@ export default function AdminDashboard({ onLogout }) {
           border: '1px solid var(--canvas-border)',
           boxShadow: 'var(--shadow-xs)'
         }}>
-          {[
-            { id: 'overview', label: '📊 Overview' },
-            { id: 'teams', label: '👥 Teams & Registrations' },
-            { id: 'database', label: '🗄️ TiDB & Safety Storage' },
-            { id: 'builder', label: '🎨 Live Visual Builder (Wix-Style)' },
-            { id: 'problems', label: '📖 Problem Statements' },
-            { id: 'jury', label: '⚖️ Jury & Credentials' },
-            { id: 'email', label: '📧 Email Broadcast (Send Mail)' },
-            { id: 'rounds', label: '⏳ Rounds' },
-            { id: 'payments', label: '💳 Payments Ledger' },
-            { id: 'audit', label: '🛡️ Audit Logs' },
-          ].map(tab => (
+          {(isCoordinator
+            ? [
+                { id: 'overview', label: '📊 Overview' },
+                { id: 'teams', label: '👥 Teams & Registrations' },
+                { id: 'problems', label: '📖 Problem Statements' },
+                { id: 'jury', label: '⚖️ Jury & Evaluations' },
+                { id: 'rounds', label: '⏳ Rounds' },
+                { id: 'payments', label: '💳 Payments Ledger' },
+                { id: 'email', label: '📧 Email Broadcast (Send Mail)' },
+              ]
+            : [
+                { id: 'overview', label: '📊 Overview' },
+                { id: 'teams', label: '👥 Teams & Registrations' },
+                { id: 'database', label: '🗄️ TiDB & Safety Storage' },
+                { id: 'builder', label: '🎨 Live Visual Builder (Wix-Style)' },
+                { id: 'problems', label: '📖 Problem Statements' },
+                { id: 'jury', label: '⚖️ Jury & Credentials' },
+                { id: 'email', label: '📧 Email Broadcast (Send Mail)' },
+                { id: 'rounds', label: '⏳ Rounds' },
+                { id: 'payments', label: '💳 Payments Ledger' },
+                { id: 'audit', label: '🛡️ Audit Logs' },
+              ]
+          ).map(tab => (
             <button
               key={tab.id}
               className={`filter-pill ${activeTab === tab.id ? 'active' : ''}`}
@@ -560,54 +587,97 @@ export default function AdminDashboard({ onLogout }) {
                 </div>
               </div>
 
-              <div className="bento-card card-pastel-sky" style={{ padding: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--pastel-sky-text)' }}>DATABASE SAFETY</span>
-                  <Database size={20} color="var(--pastel-sky-text)" />
+              {isCoordinator ? (
+                <div className="bento-card card-pastel-sky" style={{ padding: '1.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--pastel-sky-text)' }}>OPERATIONS DESK</span>
+                    <Activity size={20} color="var(--pastel-sky-text)" />
+                  </div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--whiz-dark)', marginTop: '0.4rem' }}>
+                    Live On-Duty
+                  </div>
+                  <div style={{ fontSize: '0.785rem', color: 'var(--pastel-sky-text)', marginTop: '0.5rem', fontWeight: 700 }}>
+                    ✓ 8 SDG Tracks Synchronized
+                  </div>
                 </div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--whiz-dark)', marginTop: '0.4rem' }}>
-                  {dbStatus?.isTiDbConnected ? 'TiDB Cloud' : 'Safety Mirror'}
+              ) : (
+                <div className="bento-card card-pastel-sky" style={{ padding: '1.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--pastel-sky-text)' }}>DATABASE SAFETY</span>
+                    <Database size={20} color="var(--pastel-sky-text)" />
+                  </div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--whiz-dark)', marginTop: '0.4rem' }}>
+                    {dbStatus?.isTiDbConnected ? 'TiDB Cloud' : 'Safety Mirror'}
+                  </div>
+                  <div style={{ fontSize: '0.785rem', color: 'var(--pastel-sky-text)', marginTop: '0.5rem', fontWeight: 700 }}>
+                    ✓ Safe Multi-Store Active
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.785rem', color: 'var(--pastel-sky-text)', marginTop: '0.5rem', fontWeight: 700 }}>
-                  ✓ Safe Multi-Store Active
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Quick Actions & DB Sync Banner */}
-            <div className="bento-card" style={{ padding: '1.5rem 2rem', background: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ width: 44, height: 44, borderRadius: 'var(--r-lg)', background: 'var(--pastel-mint-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--pastel-mint-text)' }}>
-                  <Database size={22} />
-                </div>
-                <div>
-                  <div style={{ fontWeight: 900, color: 'var(--whiz-dark)', fontSize: '1rem' }}>
-                    TiDB Cloud Connected & Local Safety Storage Operational
+            {isCoordinator ? (
+              <div className="bento-card" style={{ padding: '1.5rem 2rem', background: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 'var(--r-lg)', background: 'var(--pastel-mint-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--pastel-mint-text)' }}>
+                    <ClipboardCheck size={22} />
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    All registration records, payments, and submissions are synchronized across TiDB and the local safety mirror.
+                  <div>
+                    <div style={{ fontWeight: 900, color: 'var(--whiz-dark)', fontSize: '1rem' }}>
+                      Coordinator Operations Center Active
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      Manage registered teams, verify submissions, assist participants, and facilitate live evaluations across all 8 SDG tracks.
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setActiveTab('database')}
-                  style={{ fontWeight: 800 }}
-                >
-                  <Server size={14} /> View Storage Metrics
-                </button>
-                <button
-                  className="btn btn-coral btn-sm"
-                  onClick={handleSyncSafetyBackup}
-                  disabled={dbLoading}
-                  style={{ fontWeight: 800 }}
-                >
-                  <HardDrive size={14} /> {dbLoading ? 'Syncing...' : 'Sync Snapshot Now'}
-                </button>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    className="btn btn-coral btn-sm"
+                    onClick={() => setActiveTab('teams')}
+                    style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <Users size={14} /> View Registered Teams
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="bento-card" style={{ padding: '1.5rem 2rem', background: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 'var(--r-lg)', background: 'var(--pastel-mint-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--pastel-mint-text)' }}>
+                    <Database size={22} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 900, color: 'var(--whiz-dark)', fontSize: '1rem' }}>
+                      TiDB Cloud Connected & Local Safety Storage Operational
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      All registration records, payments, and submissions are synchronized across TiDB and the local safety mirror.
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setActiveTab('database')}
+                    style={{ fontWeight: 800 }}
+                  >
+                    <Server size={14} /> View Storage Metrics
+                  </button>
+                  <button
+                    className="btn btn-coral btn-sm"
+                    onClick={handleSyncSafetyBackup}
+                    disabled={dbLoading}
+                    style={{ fontWeight: 800 }}
+                  >
+                    <HardDrive size={14} /> {dbLoading ? 'Syncing...' : 'Sync Snapshot Now'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Recent Activity & Tracks */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem' }}>
@@ -1972,6 +2042,37 @@ export default function AdminDashboard({ onLogout }) {
                 >
                   <X size={24} />
                 </button>
+              </div>
+
+              {/* Official Team QR Entry Pass Card */}
+              <div className="bento-card" style={{
+                padding: '1.25rem 1.5rem',
+                marginBottom: '1.25rem',
+                background: '#FFFFFF',
+                border: '1.5px solid var(--whiz-coral)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '1.25rem'
+              }}>
+                <div style={{ flex: 1, minWidth: 240 }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                    <span className="badge badge-coral" style={{ fontSize: '0.75rem' }}>OFFICIAL QR ENTRY PASS</span>
+                    <span className={`badge ${selectedTeam.payment_status === 'paid' ? 'badge-lime' : 'badge-lavender'}`} style={{ fontSize: '0.7rem' }}>
+                      {selectedTeam.payment_status === 'paid' ? '● VERIFIED & PAID' : '⏳ UNPAID'}
+                    </span>
+                  </div>
+                  <h4 style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.3rem' }}>
+                    Accreditation & Gate Check QR
+                  </h4>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                    Scan with any smartphone camera at Vel Tech Gate / Reception Desk to verify credentials, roster accreditation, and payment clearance instantly.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <TeamQrCode team={selectedTeam} size={140} showActions={true} />
+                </div>
               </div>
 
               {/* Leader Details Card */}

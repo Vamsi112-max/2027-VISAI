@@ -3,7 +3,7 @@ import { VISAI_CONFIG, SOCIAL_LINKS, NAV_LINKS } from '../data/visaiData';
 import { Sparkles, Mail, Phone, MapPin, ArrowUpRight, Heart } from 'lucide-react';
 import { InstagramIcon, LinkedinIcon, YoutubeIcon, GithubIcon } from './shared/BrandIcons';
 
-export default function Footer({ onOpenAuth, onNavigate }) {
+export default function Footer({ onOpenAuth, onNavigate, onOpenFormats }) {
   return (
     <footer style={{
       background: '#FFFFFF',
@@ -147,7 +147,7 @@ export default function Footer({ onOpenAuth, onNavigate }) {
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate && onNavigate('teams')}
+                  onClick={() => onOpenFormats ? onOpenFormats() : (onNavigate && onNavigate('formats'))}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 600, padding: 0 }}
                 >
                   📋 PPT & Abstract Format

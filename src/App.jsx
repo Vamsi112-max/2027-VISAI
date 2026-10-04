@@ -18,6 +18,7 @@ import LiveRegistrationHud from './components/public/LiveRegistrationHud';
 import BackToTopWidget from './components/public/BackToTopWidget';
 import CustomBlocksRenderer from './components/public/CustomBlocksRenderer';
 import CustomDynamicPage from './components/public/CustomDynamicPage';
+import FormatsModal from './components/public/FormatsModal';
 import Footer from './components/Footer';
 import AuthModal from './components/AuthModal';
 import ParticipantDashboard from './components/ParticipantDashboard';
@@ -381,6 +382,7 @@ function AppShell() {
   const { content, isVisualEditMode } = useSiteContent();
   const [activeTab, setActiveTab] = useState('home');
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [formatsModalOpen, setFormatsModalOpen] = useState(false);
 
   // Global dashboard navigation listener
   useEffect(() => {
@@ -399,12 +401,18 @@ function AppShell() {
     return () => window.removeEventListener('visai:goto-home-edit', handleEdit);
   }, []);
 
-  // Auto route to dashboard on login if participant
+  const isAdmin = user && (user.role === 'super_admin' || user.role === 'admin');
+  const isCoordinator = user && user.role === 'coordinator';
+  const isJury = user && user.role === 'jury';
+
+  // Auto route to role-appropriate dashboard on login
   useEffect(() => {
-    if (user && user.role === 'participant' && activeTab === 'home') {
-      setActiveTab('dashboard');
+    if (user && activeTab === 'home') {
+      if (user.role === 'participant' || user.role === 'coordinator' || user.role === 'jury') {
+        setActiveTab('dashboard');
+      }
     }
-  }, [user]);
+  }, [user, activeTab]);
 
   // Apply custom dynamic theme variables (border-radius curves)
   useEffect(() => {
@@ -431,19 +439,23 @@ function AppShell() {
     };
     return (
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--canvas-bg)' }}>
-        <LiveVisualEditorToolbar />
+        {isAdmin && <LiveVisualEditorToolbar />}
         <Navbar activeTab={activeTab} setActiveTab={setActiveTab} onOpenAuth={() => setAuthModalOpen(true)} />
         {user.role === 'super_admin' && <AdminDashboard onLogout={handleLogout} />}
         {user.role === 'coordinator' && <AdminDashboard onLogout={handleLogout} />}
         {user.role === 'jury' && <JuryDashboard onLogout={handleLogout} />}
         {user.role === 'participant' && <ParticipantDashboard onLogout={handleLogout} />}
         
-        {/* Visual Builder Modals */}
-        <EditFieldModal />
-        <AddBlockModal />
-        <AddPageModal />
-        <ThemeAdjusterModal />
-        <ReviewChangesModal />
+        {/* Visual Builder Modals (Super Admin Only) */}
+        {isAdmin && (
+          <>
+            <EditFieldModal />
+            <AddBlockModal />
+            <AddPageModal />
+            <ThemeAdjusterModal />
+            <ReviewChangesModal />
+          </>
+        )}
       </div>
     );
   }
@@ -454,6 +466,15 @@ function AppShell() {
 
   // Public Web Pages Routing
   const renderPage = () => {
+    // Strict isolation for Jury and Coordinator:
+    // They must only see their evaluation/operations console, never the public marketing sections
+    if (isJury) {
+      return <JuryDashboard onLogout={() => { logout(); setActiveTab('home'); }} />;
+    }
+    if (isCoordinator) {
+      return <AdminDashboard onLogout={() => { logout(); setActiveTab('home'); }} />;
+    }
+
     if (currentCustomPage) {
       return <CustomDynamicPage page={currentCustomPage} onNavigateHome={() => setActiveTab('home')} />;
     }
@@ -534,8 +555,6 @@ function AppShell() {
     }
   };
 
-  const isAdmin = user && (user.role === 'super_admin' || user.role === 'admin');
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--canvas-bg)' }}>
       {/* Live Visual Editor Top Dock (Strictly Admins Only) */}
@@ -554,8 +573,12 @@ function AppShell() {
       {/* Floating Back to Top Button */}
       <BackToTopWidget />
 
-      <Footer onOpenAuth={() => setAuthModalOpen(true)} onNavigate={setActiveTab} />
+      {/* Hide marketing footer for Coordinator & Jury portals */}
+      {!isJury && !isCoordinator && (
+        <Footer onOpenAuth={() => setAuthModalOpen(true)} onNavigate={setActiveTab} onOpenFormats={() => setFormatsModalOpen(true)} />
+      )}
       <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+      <FormatsModal isOpen={formatsModalOpen} onClose={() => setFormatsModalOpen(false)} />
 
       {/* Visual Builder Modals (Strictly Admins Only) */}
       {isAdmin && (

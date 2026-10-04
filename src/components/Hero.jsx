@@ -170,21 +170,20 @@ export default function Hero({ onRegister, onExploreProblems, onExploreGallery }
           </div>
 
           <h1 className="hero-main-title">
-            <InlineEditBox fieldPath="hero.titleLine1" fieldLabel="Hero Title Line 1" value={heroData.titleLine1 || 'Innovate, Build, Transform:'} />
+            <InlineEditBox as="span" fieldPath="hero.titleLine1" fieldLabel="Hero Title Line 1" value={heroData.titleLine1 || 'Innovate, Build, Transform:'} />
             <br />
             <span style={{
-              background: 'linear-gradient(135deg, #181A20 0%, #2A2E3D 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              color: 'var(--whiz-dark)',
+              display: 'inline-block',
             }}>
-              <InlineEditBox fieldPath="hero.titleLine2Gradient" fieldLabel="Hero Title Gradient" value={heroData.titleLine2Gradient || 'Bright Futures'} />
+              <InlineEditBox as="span" fieldPath="hero.titleLine2Gradient" fieldLabel="Hero Title Gradient" value={heroData.titleLine2Gradient || 'Bright Futures'} />
             </span>{' '}
             <span style={{
               color: 'var(--whiz-coral)',
               display: 'inline-block',
               position: 'relative'
             }}>
-              <InlineEditBox fieldPath="hero.titleLine2Accent" fieldLabel="Hero Title Accent" value={heroData.titleLine2Accent || 'Begin Here.'} />
+              <InlineEditBox as="span" fieldPath="hero.titleLine2Accent" fieldLabel="Hero Title Accent" value={heroData.titleLine2Accent || 'Begin Here.'} />
             </span>
           </h1>
 
