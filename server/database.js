@@ -1,100 +1,176 @@
-const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+const mysql = require('mysql2/promise');
+const { sqlitePool, initializeSqliteDatabase, all: sqliteAll, run: sqliteRun, db: sqliteDb } = require('./localDatabase');
 
-const dbPath = path.resolve(__dirname, 'visai.db');
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error opening database', err.message);
-  } else {
-    console.log('Connected to the SQLite database.');
-    db.run('PRAGMA foreign_keys = ON');
-    createTables();
-  }
-});
+let activePool = sqlitePool;
+let isUsingSqlite = true;
+let lastBackupTime = null;
+let lastBackupFile = null;
 
-function createTables() {
-  db.serialize(() => {
-    // Roles & Users
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      phone TEXT,
-      password TEXT NOT NULL,
-      role TEXT DEFAULT 'participant' CHECK(role IN ('participant', 'jury', 'admin', 'coordinator')),
-      is_verified INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
+const dbConfig = {
+  host: process.env.DB_HOST || '127.0.0.1',
+  port: parseInt(process.env.DB_PORT || '4000'),
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'visai2027',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  charset: 'utf8mb4',
+};
 
-    // Teams
-    db.run(`CREATE TABLE IF NOT EXISTS teams (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      leader_id INTEGER,
-      problem_statement_id INTEGER,
-      status TEXT DEFAULT 'Draft',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (leader_id) REFERENCES users(id),
-      FOREIGN KEY (problem_statement_id) REFERENCES problem_statements(id)
-    )`);
-
-    // Team Members
-    db.run(`CREATE TABLE IF NOT EXISTS team_members (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      team_id INTEGER,
-      name TEXT NOT NULL,
-      email TEXT,
-      phone TEXT,
-      institution TEXT,
-      FOREIGN KEY (team_id) REFERENCES teams(id)
-    )`);
-
-    // Problem Statements
-    db.run(`CREATE TABLE IF NOT EXISTS problem_statements (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      category TEXT,
-      description TEXT,
-      status TEXT DEFAULT 'active'
-    )`);
-
-    // Submissions
-    db.run(`CREATE TABLE IF NOT EXISTS submissions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      team_id INTEGER,
-      version INTEGER NOT NULL,
-      abstract TEXT,
-      ppt_url TEXT,
-      status TEXT DEFAULT 'Submitted',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (team_id) REFERENCES teams(id)
-    )`);
-
-    // Evaluations
-    db.run(`CREATE TABLE IF NOT EXISTS evaluations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      submission_id INTEGER,
-      jury_id INTEGER,
-      total_score INTEGER,
-      comments TEXT,
-      decision TEXT,
-      status TEXT DEFAULT 'Draft',
-      FOREIGN KEY (submission_id) REFERENCES submissions(id),
-      FOREIGN KEY (jury_id) REFERENCES users(id)
-    )`);
-
-    // Payments
-    db.run(`CREATE TABLE IF NOT EXISTS payments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      team_id INTEGER,
-      razorpay_order_id TEXT,
-      razorpay_payment_id TEXT,
-      amount INTEGER,
-      status TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (team_id) REFERENCES teams(id)
-    )`);
-  });
+if (process.env.DB_SSL === 'true') {
+  dbConfig.ssl = { minVersion: 'TLSv1.2', rejectUnauthorized: true };
 }
 
-module.exports = db;
+let initPromise = null;
+
+// Proxy pool that delegates to MySQL/TiDB when connected, or SQLite local DB
+const poolProxy = {
+  async query(sql, params) {
+    if (initPromise) await initPromise;
+    return activePool.query(sql, params);
+  },
+  async getConnection() {
+    if (initPromise) await initPromise;
+    return activePool.getConnection();
+  },
+  isSqlite() {
+    return isUsingSqlite;
+  },
+  async getDbStatus() {
+    let tidbConnected = !isUsingSqlite;
+    let tablesSummary = {};
+    const tableNames = [
+      'users', 'user_profiles', 'events', 'rounds', 'teams',
+      'team_leader_details', 'team_members', 'college_details',
+      'problem_statements', 'team_problem_selections', 'submissions',
+      'jury_members', 'jury_assignments', 'evaluations', 'payments', 'audit_logs'
+    ];
+
+    for (const tbl of tableNames) {
+      try {
+        const [rows] = await activePool.query(`SELECT COUNT(*) as count FROM ${tbl}`);
+        tablesSummary[tbl] = rows[0]?.count || 0;
+      } catch (e) {
+        tablesSummary[tbl] = 0;
+      }
+    }
+
+    return {
+      engine: isUsingSqlite ? 'SQLite (Local Safety Mirror & Storage)' : 'TiDB Cloud (Distributed SQL)',
+      isTiDbConnected: tidbConnected,
+      host: dbConfig.host,
+      port: dbConfig.port,
+      database: dbConfig.database,
+      user: dbConfig.user,
+      ssl: process.env.DB_SSL === 'true',
+      lastBackupTime,
+      lastBackupFile,
+      tables: tablesSummary,
+      safetyStorageActive: true,
+      timestamp: new Date().toISOString()
+    };
+  },
+
+  async syncAndBackupDatabase() {
+    const backupDir = path.join(__dirname, 'backups');
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+
+    const tableNames = [
+      'users', 'user_profiles', 'events', 'rounds', 'teams',
+      'team_leader_details', 'team_members', 'college_details',
+      'problem_statements', 'team_problem_selections', 'submissions',
+      'jury_members', 'jury_assignments', 'evaluations', 'payments', 'audit_logs'
+    ];
+
+    const snapshot = {
+      timestamp: new Date().toISOString(),
+      source_engine: isUsingSqlite ? 'SQLite' : 'TiDB',
+      data: {}
+    };
+
+    let totalRecords = 0;
+    for (const tbl of tableNames) {
+      try {
+        const [rows] = await activePool.query(`SELECT * FROM ${tbl}`);
+        snapshot.data[tbl] = rows;
+        totalRecords += rows.length;
+      } catch (e) {
+        snapshot.data[tbl] = [];
+      }
+    }
+
+    const filename = `snapshot-${Date.now()}.json`;
+    const filePath = path.join(backupDir, filename);
+    fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf-8');
+
+    // Also write a latest snapshot
+    fs.writeFileSync(path.join(backupDir, 'latest-snapshot.json'), JSON.stringify(snapshot, null, 2), 'utf-8');
+
+    lastBackupTime = new Date().toISOString();
+    lastBackupFile = filename;
+
+    return {
+      success: true,
+      backupFile: filename,
+      totalRecords,
+      timestamp: lastBackupTime,
+      tablesBackedUp: Object.keys(snapshot.data).length
+    };
+  },
+
+  async testTiDbConnection(customConfig = null) {
+    const cfg = customConfig ? { ...dbConfig, ...customConfig } : dbConfig;
+    try {
+      const testPool = mysql.createPool(cfg);
+      const conn = await testPool.getConnection();
+      const [result] = await conn.query('SELECT VERSION() as version');
+      conn.release();
+      await testPool.end();
+      return {
+        success: true,
+        message: 'TiDB connection successful!',
+        version: result[0]?.version || 'TiDB / MySQL compatible'
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: err.message,
+        code: err.code
+      };
+    }
+  }
+};
+
+async function initDatabaseEngine() {
+  try {
+    const mysqlPool = mysql.createPool(dbConfig);
+    const conn = await mysqlPool.getConnection();
+    console.log('[DB] Connected to TiDB/MySQL database successfully');
+    conn.release();
+    activePool = mysqlPool;
+    isUsingSqlite = false;
+  } catch (err) {
+    console.log('[DB] TiDB/MySQL server not detected on host:', dbConfig.host);
+    console.log('[DB] Initializing and connecting to Local SQLite safety database: server/visai.db ...');
+    await initializeSqliteDatabase();
+    activePool = sqlitePool;
+    isUsingSqlite = true;
+    console.log('[DB] Local SQLite safety database connected and fully operational!');
+  }
+
+  // Initial safety backup snapshot
+  try {
+    await poolProxy.syncAndBackupDatabase();
+  } catch(e) {}
+}
+
+initPromise = initDatabaseEngine();
+
+module.exports = poolProxy;
+

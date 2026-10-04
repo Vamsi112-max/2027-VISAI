@@ -1,276 +1,324 @@
 import React, { useState } from 'react';
-import { 
-  Sparkles, 
-  Menu, 
-  X, 
-  BookOpen, 
-  Code2, 
-  Cpu, 
-  LogOut, 
-  User, 
-  ShieldCheck, 
-  Award, 
-  Wrench, 
-  ExternalLink 
-} from 'lucide-react';
-import { DEMO_CREDENTIALS } from '../data/visaiData';
+import { Menu, X, LogOut, ChevronDown, User, Sparkles, Image, Users, GitFork, BookOpen, Clock, HelpCircle, Trophy, Edit3, Palette, FileText } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useSiteContent } from '../context/SiteContentContext';
+import { VISAI_CONFIG, NAV_LINKS } from '../data/visaiData';
+import InlineEditBox from './admin/InlineEditBox';
 
-export default function Navbar({ activeTab, setActiveTab, currentRole, onLogout, onOpenAuthModal }) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState(null);
-  const [hoverTimeout, setHoverTimeout] = useState(null);
+export default function Navbar({ activeTab, setActiveTab, onOpenAuth }) {
+  const { user, logout } = useAuth();
+  const { content, isVisualEditMode, startVisualEdit } = useSiteContent();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const currentCred = DEMO_CREDENTIALS.find(c => c.role === currentRole);
+  const handleLogout = () => {
+    logout();
+    setUserMenuOpen(false);
+    setActiveTab('home');
+  };
 
-  const navItems = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'timeline', label: 'Hackathon Timeline' },
-    { id: 'tracks', label: 'Tracks (SW & HW)' },
-    { id: 'problems', label: 'Problem Statements' },
-    { id: 'sdgs', label: 'SDG Matrix' },
-    { id: 'stalls', label: 'Expo & Stalls' }
-  ];
+  const roleLabel = {
+    participant: 'Participant',
+    jury: 'Jury Member',
+    coordinator: 'Coordinator',
+    super_admin: 'Super Admin',
+  };
+
+  const roleBadgeClass = {
+    participant: 'badge-sky',
+    jury: 'badge-lavender',
+    coordinator: 'badge-mint',
+    super_admin: 'badge-peach',
+  };
+
+  const getNavIcon = (id) => {
+    switch (id) {
+      case 'problems': return <BookOpen size={15} />;
+      case 'gallery': return <Image size={15} />;
+      case 'teams': return <GitFork size={15} />;
+      case 'timeline': return <Clock size={15} />;
+      case 'rules': return <HelpCircle size={15} />;
+      case 'results': return <Trophy size={15} />;
+      default: return <FileText size={15} />;
+    }
+  };
+
+  // Merge default nav links with custom pages created by Admin
+  const customPages = content?.customPages || [];
+  const customNavLinks = customPages.map(p => ({
+    id: `custom-${p.id}`,
+    label: p.navLabel,
+    badge: 'New',
+    isCustom: true,
+    pageData: p,
+  }));
+
+  const allNavLinks = [...NAV_LINKS, ...customNavLinks];
 
   return (
-    <header style={{
-      position: 'sticky',
-      top: '0.75rem',
-      zIndex: 50,
-      padding: '0 1.25rem',
-      pointerEvents: 'none'
-    }}>
-      <div style={{ 
-        maxWidth: '1240px', 
-        margin: '0 auto',
-        background: '#ffffff',
-        border: '1px solid rgba(226, 232, 240, 0.8)',
-        borderRadius: '9999px',
-        boxShadow: '0 8px 30px -4px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04)',
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        padding: '0.4rem 1rem',
-        pointerEvents: 'auto',
-        position: 'relative'
-      }}>
-        
-        {/* Brand & Logo matching screenshot */}
-        <div 
-          style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', paddingLeft: '0.5rem' }} 
-          onClick={() => setActiveTab('overview')}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <img 
-              src="/visai-logo.png" 
-              alt="VISAI" 
-              style={{ 
-                height: '38px', 
-                objectFit: 'contain'
-              }} 
-            />
-            <span style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '0.85rem',
-              fontWeight: 900,
-              letterSpacing: '0.12em',
-              color: '#0f172a',
-              marginTop: '-3px'
-            }}>
-              2027
-            </span>
-          </div>
-        </div>
-
-        {/* Desktop Navigation Links */}
-        <nav style={{ display: 'none', alignItems: 'center', gap: '0.35rem' }} className="desktop-nav">
-          {navItems.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                style={{
-                  background: isActive ? '#e0edff' : 'transparent',
-                  border: 'none',
-                  color: isActive ? '#2563eb' : '#334155',
-                  fontWeight: isActive ? 700 : 600,
-                  fontSize: '0.875rem',
-                  cursor: 'pointer',
-                  padding: isActive ? '0.45rem 1.15rem' : '0.45rem 0.85rem',
-                  borderRadius: '9999px',
-                  transition: 'all 0.15s ease-in-out',
-                  display: 'flex',
-                  alignItems: 'center',
-                  letterSpacing: '0.01em'
-                }}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Role & Auth Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingRight: '0.35rem' }}>
-          {currentRole ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#f1f5f9', padding: '0.25rem', borderRadius: '9999px' }}>
-              <button
-                onClick={() => setActiveTab('portal')}
-                className="btn btn-sm"
-                style={{
-                  background: currentCred?.color || '#1e3a8a',
-                  color: '#fff',
-                  boxShadow: `0 2px 10px ${currentCred?.color || '#1e3a8a'}55`,
-                  border: 'none',
-                  borderRadius: '9999px',
-                  padding: '0.45rem 1.1rem',
-                  fontWeight: 700
-                }}
-              >
-                <User size={14} />
-                <span>{currentCred?.badge || 'My Portal'}</span>
-              </button>
-
-              <button
-                onClick={onLogout}
-                className="btn btn-sm btn-secondary"
-                title="Log out back to public view"
-                style={{ padding: '0.4rem', borderRadius: '50%' }}
-              >
-                <LogOut size={14} />
-              </button>
+    <nav className="whiz-navbar">
+      <div className="container-wide">
+        <div className="whiz-nav-inner">
+          {/* Logo */}
+          <button
+            className="whiz-logo"
+            onClick={() => { setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          >
+            <div className="whiz-logo-icon">
+              <Sparkles size={20} color="#fff" />
             </div>
-          ) : (
-            <button
-              onClick={onOpenAuthModal}
-              style={{ 
-                background: '#1e3a8a', 
-                color: '#ffffff', 
-                borderRadius: '9999px', 
-                padding: '0.55rem 1.35rem', 
-                fontWeight: 700, 
-                fontSize: '0.875rem',
-                border: 'none',
-                cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(30, 58, 138, 0.25)',
-                transition: 'all 0.2s ease-in-out'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#172554'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#1e3a8a'}
-            >
-              Portal Login
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', lineHeight: 1.1 }}>
+              <span style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--whiz-dark)' }}>
+                VISAI<span style={{ color: 'var(--whiz-coral)' }}>.27</span>
+              </span>
+              <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                {content?.themeSettings?.institutionName || 'Vel Tech R&D'}
+              </span>
+            </div>
+          </button>
+
+          {/* Desktop Nav Links in pill container */}
+          {(!user || user.role === 'participant') && (
+            <div className="whiz-nav-links">
+              {allNavLinks.map(link => (
+                <button
+                  key={link.id}
+                  className={`whiz-nav-link ${activeTab === link.id ? 'active' : ''}`}
+                  onClick={() => { setActiveTab(link.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                >
+                  {getNavIcon(link.id)}
+                  <span>{link.label}</span>
+                  {link.badge && (
+                    <span style={{
+                      background: 'var(--whiz-coral)',
+                      color: '#fff',
+                      fontSize: '0.65rem',
+                      padding: '0.1rem 0.45rem',
+                      borderRadius: 'var(--r-full)',
+                      fontWeight: 800,
+                      marginLeft: '0.2rem'
+                    }}>
+                      {link.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           )}
 
-          {/* Mobile hamburger toggle */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            style={{
-              background: '#f1f5f9',
-              border: 'none',
-              color: '#0f172a',
-              cursor: 'pointer',
-              display: 'flex',
-              padding: '0.5rem',
-              borderRadius: '50%'
-            }}
-            className="mobile-menu-btn"
-          >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-      </div>
+          {/* User / Action Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            
+            {/* Quick Admin Visual Editor Button for logged-in Admins Only */}
+            {user && (user.role === 'super_admin' || user.role === 'admin') && !isVisualEditMode && (
+              <button
+                className="btn btn-sm"
+                onClick={() => {
+                  setActiveTab('home');
+                  startVisualEdit();
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #FF5A36, #FF8A00)',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: 'var(--r-full)',
+                  padding: '0.45rem 0.95rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  boxShadow: 'var(--shadow-coral)',
+                  cursor: 'pointer',
+                }}
+                title="Launch Wix-Style Live Visual Page Editor"
+              >
+                <Edit3 size={14} />
+                <span>Admin Visual Edit</span>
+              </button>
+            )}
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(24px)',
-          borderRadius: '24px',
-          marginTop: '1rem',
-          padding: '1.25rem',
-          boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.1)',
-          pointerEvents: 'auto'
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {navItems.map((item) => (
-              <div key={item.id}>
+            {user ? (
+              <div style={{ position: 'relative' }}>
                 <button
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setMobileMenuOpen(false);
-                  }}
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
                   style={{
-                    background: activeTab === item.id ? '#eff6ff' : 'transparent',
-                    border: 'none',
-                    textAlign: 'left',
-                    color: activeTab === item.id ? '#2563eb' : '#475569',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '12px',
-                    fontSize: '1rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
+                    display: 'flex', alignItems: 'center', gap: '0.6rem',
+                    padding: '0.45rem 0.9rem', borderRadius: 'var(--r-full)',
+                    background: '#FFFFFF', border: '1px solid var(--canvas-border-strong)',
+                    cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600,
+                    boxShadow: 'var(--shadow-xs)',
                   }}
                 >
-                  {item.label}
+                  <div style={{
+                    width: 30, height: 30, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #FF5A36, #FFA000)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#fff', fontSize: '0.8rem', fontWeight: 800,
+                  }}>
+                    {(user.full_name || user.email || 'U')[0].toUpperCase()}
+                  </div>
+                  <span style={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {user.full_name || user.email}
+                  </span>
+                  <ChevronDown size={15} color="var(--text-muted)" />
                 </button>
-                {/* Mobile SubItems Display */}
-                {item.subItems && (
-                  <div style={{ display: 'flex', flexDirection: 'column', paddingLeft: '1rem', marginTop: '0.25rem', borderLeft: '2px solid #e2e8f0', marginLeft: '1rem' }}>
-                    {item.subItems.map((sub, idx) => (
+
+                {userMenuOpen && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+                    background: '#fff', border: '1px solid var(--canvas-border)', borderRadius: 'var(--r-xl)',
+                    boxShadow: 'var(--shadow-xl)', minWidth: 220, zIndex: 200,
+                    overflow: 'hidden', animation: 'fadeIn 0.15s ease-out',
+                  }}>
+                    <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--canvas-border)', background: 'var(--canvas-subtle)' }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {user.full_name || 'Innovator'}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                        {user.email}
+                      </div>
+                      <span className={`badge ${roleBadgeClass[user.role] || 'badge-sky'}`}>
+                        {roleLabel[user.role] || user.role}
+                      </span>
+                    </div>
+                    <div style={{ padding: '0.5rem' }}>
                       <button
-                        key={idx}
-                        onClick={() => {
-                          setActiveTab(sub.id);
-                          setMobileMenuOpen(false);
-                        }}
+                        onClick={() => { setActiveTab('dashboard'); setUserMenuOpen(false); }}
                         style={{
-                          background: 'none',
-                          border: 'none',
-                          textAlign: 'left',
-                          padding: '0.5rem',
-                          color: '#64748b',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          cursor: 'pointer'
+                          display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%',
+                          padding: '0.7rem 1rem', background: 'none', border: 'none', cursor: 'pointer',
+                          fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)',
+                          borderRadius: 'var(--r-sm)',
                         }}
                       >
-                        {sub.label}
+                        <User size={16} color="var(--whiz-coral)" /> Go to Dashboard
                       </button>
-                    ))}
+
+                      {user && (user.role === 'super_admin' || user.role === 'admin') && (
+                        <button
+                          onClick={() => {
+                            setActiveTab('home');
+                            setUserMenuOpen(false);
+                            startVisualEdit();
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%',
+                            padding: '0.7rem 1rem', background: 'none', border: 'none', cursor: 'pointer',
+                            fontSize: '0.875rem', fontWeight: 700, color: 'var(--whiz-coral)',
+                            borderRadius: 'var(--r-sm)',
+                          }}
+                        >
+                          <Edit3 size={16} /> Live Visual Page Builder
+                        </button>
+                      )}
+
+                      <button
+                        onClick={handleLogout}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%',
+                          padding: '0.7rem 1rem', background: 'none', border: 'none', cursor: 'pointer',
+                          fontSize: '0.875rem', fontWeight: 600, color: '#EF4444',
+                          borderRadius: 'var(--r-sm)',
+                        }}
+                      >
+                        <LogOut size={16} /> Sign Out
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
-            ))}
-
-            <div style={{ paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0', marginTop: '0.5rem' }}>
-              {!currentRole && (
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <button
-                  onClick={() => {
-                    onOpenAuthModal();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="btn btn-primary"
-                  style={{ width: '100%', borderRadius: '12px', padding: '0.85rem' }}
+                  className="btn btn-ghost btn-sm"
+                  onClick={onOpenAuth}
+                  style={{ fontWeight: 700 }}
                 >
-                  Sign In / Role Switcher
+                  Log In
                 </button>
-              )}
-            </div>
+                <button
+                  className="btn btn-coral btn-sm"
+                  onClick={onOpenAuth}
+                  style={{ fontWeight: 800 }}
+                >
+                  Register Now
+                </button>
+              </div>
+            )}
+
+            {/* Mobile menu hamburger */}
+            <button
+              className="btn btn-ghost btn-sm mobile-hamburger-btn"
+              onClick={() => setMobileOpen(!mobileOpen)}
+              style={{ display: 'none' }}
+              aria-label="Toggle menu"
+            >
+              {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
           </div>
         </div>
-      )}
+
+        {/* Mobile Navigation Dropdown */}
+        {mobileOpen && (
+          <div style={{
+            marginTop: '0.75rem',
+            padding: '1rem',
+            background: '#FFFFFF',
+            borderRadius: 'var(--r-xl)',
+            border: '1px solid var(--canvas-border)',
+            boxShadow: 'var(--shadow-lg)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem'
+          }}>
+            {allNavLinks.map(link => (
+              <button
+                key={link.id}
+                onClick={() => { setActiveTab(link.id); setMobileOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--r-md)',
+                  background: activeTab === link.id ? 'var(--whiz-dark)' : 'transparent',
+                  color: activeTab === link.id ? '#FFFFFF' : 'var(--text-primary)',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  {getNavIcon(link.id)}
+                  {link.label}
+                </span>
+                {link.badge && (
+                  <span style={{
+                    background: 'var(--whiz-coral)',
+                    color: '#fff',
+                    fontSize: '0.65rem',
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: 'var(--r-full)'
+                  }}>
+                    {link.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <style>{`
-        @media (min-width: 1024px) {
-          .desktop-nav { display: flex !important; }
-          .mobile-menu-btn { display: none !important; }
+        @media (max-width: 992px) {
+          .mobile-hamburger-btn {
+            display: inline-flex !important;
+          }
         }
       `}</style>
-    </header>
+    </nav>
   );
 }

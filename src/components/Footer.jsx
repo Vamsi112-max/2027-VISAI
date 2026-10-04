@@ -1,150 +1,235 @@
 import React from 'react';
-import { Phone, Mail, MapPin, Download, ExternalLink, Globe, Heart } from 'lucide-react';
+import { VISAI_CONFIG, SOCIAL_LINKS, NAV_LINKS } from '../data/visaiData';
+import { Sparkles, Mail, Phone, MapPin, ArrowUpRight, Heart } from 'lucide-react';
+import { InstagramIcon, LinkedinIcon, YoutubeIcon, GithubIcon } from './shared/BrandIcons';
 
-export default function Footer({ onOpenAuthModal }) {
+export default function Footer({ onOpenAuth, onNavigate }) {
   return (
     <footer style={{
-      background: '#0f172a',
-      borderTop: '1px solid #1e293b',
+      background: '#FFFFFF',
+      borderTop: '1px solid var(--canvas-border)',
       padding: '4.5rem 0 2.5rem',
-      color: '#94a3b8'
+      marginTop: 'auto'
     }}>
       <div className="container">
         
+        {/* Main Footer Grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: '2.5rem',
+          gridTemplateColumns: '1.5fr 1fr 1fr 1.2fr',
+          gap: '3rem',
           marginBottom: '3.5rem'
-        }}>
+        }} className="footer-grid">
           
-          {/* Col 1: Brand & Institution */}
+          {/* Brand Col */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#fff', padding: '0.25rem 0.5rem', borderRadius: '8px' }}>
-                <img 
-                  src="/visai-logo.png" 
-                  alt="VISAI Logo" 
-                  style={{ 
-                    height: '36px', 
-                    objectFit: 'contain'
-                  }} 
-                />
-                <span style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.85rem',
-                  fontWeight: 900,
-                  letterSpacing: '0.15em',
-                  color: '#0f172a',
-                  marginTop: '-4px'
-                }}>
-                  2027
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1.25rem' }}>
+              <div className="whiz-logo-icon">
+                <Sparkles size={20} color="#fff" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+                <span style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--whiz-dark)' }}>
+                  VISAI<span style={{ color: 'var(--whiz-coral)' }}>.27</span>
+                </span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                  Vel Tech R&D
                 </span>
               </div>
             </div>
 
-            <p style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: 1.65, marginBottom: '1.25rem' }}>
-              17th Edition International Project Competition & 36/48-Hour SDG Hackathon organized by <strong>Vel Tech Rangarajan Dr. Sagunthala R&D Institute of Science and Technology</strong>, Avadi, Chennai.
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.65, marginBottom: '1.5rem' }}>
+              17th International SDG & Industry Innovation Hackathon organized by <strong>{VISAI_CONFIG.host}</strong>, Avadi, Chennai.
             </p>
 
-            <div style={{ fontSize: '0.825rem', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Phone size={14} color="#38bdf8" />
-                <span>Toll-Free Helpline: <strong>+1800 212 7669</strong></span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Mail size={14} color="#38bdf8" />
-                <span>Email: <strong>visai@veltech.edu.in</strong></span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                <MapPin size={14} color="#38bdf8" style={{ marginTop: '3px' }} />
-                <span>400 Feet Outer Ring Road, Avadi, Chennai – 600062, Tamil Nadu, India</span>
-              </div>
+            {/* Social Redirection Icons */}
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <a
+                href="https://www.instagram.com/visai_hackathon"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  width: 38, height: 38, borderRadius: '50%',
+                  background: '#FDF2F4', color: '#E1306C',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.2s ease'
+                }}
+                title="Instagram"
+              >
+                <InstagramIcon size={18} />
+              </a>
+
+              <a
+                href="https://www.linkedin.com/company/visai-hackathon"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  width: 38, height: 38, borderRadius: '50%',
+                  background: '#EEF6FD', color: '#0A66C2',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.2s ease'
+                }}
+                title="LinkedIn"
+              >
+                <LinkedinIcon size={18} />
+              </a>
+
+              <a
+                href="https://www.youtube.com/@veltechuniversity"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  width: 38, height: 38, borderRadius: '50%',
+                  background: '#FFF1F1', color: '#FF0000',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.2s ease'
+                }}
+                title="YouTube"
+              >
+                <YoutubeIcon size={18} />
+              </a>
+
+              <a
+                href="https://github.com/visai-hackathon"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  width: 38, height: 38, borderRadius: '50%',
+                  background: '#F6F8FA', color: '#24292F',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.2s ease'
+                }}
+                title="GitHub"
+              >
+                <GithubIcon size={18} />
+              </a>
             </div>
           </div>
 
-          {/* Col 2: Innovation Tracks & Themes */}
+          {/* Quick Nav Links */}
           <div>
-            <h4 style={{ color: '#fff', fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem' }}>
-              Hackathon Tracks & SDGs
+            <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--whiz-dark)', marginBottom: '1.25rem' }}>
+              Quick Navigation
             </h4>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
-              <li><a href="#tracks" style={{ color: '#cbd5e1' }}>💻 Software Track (Venue Release)</a></li>
-              <li><a href="#tracks" style={{ color: '#cbd5e1' }}>🔧 Hardware Track (7-10 Days Release)</a></li>
-              <li><a href="#sdgs" style={{ color: '#cbd5e1' }}>17 UN Sustainable Development Goals</a></li>
-              <li><a href="#problems" style={{ color: '#cbd5e1' }}>Industry Codes (e.g. VISAI-SDG06-IND01)</a></li>
-              <li><a href="#timeline" style={{ color: '#cbd5e1' }}>4 Internal Evaluation Milestones</a></li>
+            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {NAV_LINKS.map(link => (
+                <li key={link.id}>
+                  <button
+                    onClick={() => onNavigate && onNavigate(link.id)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontSize: '0.875rem', color: 'var(--text-secondary)',
+                      fontWeight: 600, padding: 0, textAlign: 'left',
+                      transition: 'color 0.2s ease'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--whiz-coral)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+                  >
+                    {link.label}
+                  </button>
+                </li>
+              ))}
             </ul>
           </div>
 
-          {/* Col 3: Official Downloads */}
+          {/* Organization & Downloads */}
           <div>
-            <h4 style={{ color: '#fff', fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem' }}>
-              Downloads & Formats
+            <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--whiz-dark)', marginBottom: '1.25rem' }}>
+              Structure & Formats
             </h4>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Download size={14} color="#38bdf8" />
-                <a href="#problems" style={{ color: '#cbd5e1' }}>VISAI 2027 Official Brochure (PDF)</a>
+            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+              <li>
+                <button
+                  onClick={() => onNavigate && onNavigate('teams')}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 600, padding: 0 }}
+                >
+                  🌳 Org Hierarchy Tree
+                </button>
               </li>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Download size={14} color="#38bdf8" />
-                <a href="#problems" style={{ color: '#cbd5e1' }}>Initial Abstract & PPT Format (.pptx)</a>
+              <li>
+                <button
+                  onClick={() => onNavigate && onNavigate('teams')}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 600, padding: 0 }}
+                >
+                  📋 PPT & Abstract Format
+                </button>
               </li>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Download size={14} color="#38bdf8" />
-                <a href="#problems" style={{ color: '#cbd5e1' }}>Hardware Track Safety Guidelines</a>
+              <li>
+                <button
+                  onClick={() => onNavigate && onNavigate('gallery')}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 600, padding: 0 }}
+                >
+                  📸 Past Edition Archives
+                </button>
               </li>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Download size={14} color="#38bdf8" />
-                <a href="#souvenir" style={{ color: '#cbd5e1' }}>Innovation Souvenir Book Template</a>
+              <li>
+                <a href="https://sdgs.un.org/goals" target="_blank" rel="noreferrer" style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  🌐 UN SDG 1–17 Framework
+                </a>
               </li>
             </ul>
           </div>
 
-          {/* Col 4: Multi-Role Portals & Logins */}
+          {/* Contact & Location */}
           <div>
-            <h4 style={{ color: '#fff', fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem' }}>
-              Multi-Role Portal Access
+            <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--whiz-dark)', marginBottom: '1.25rem' }}>
+              Institution & Helpdesk
             </h4>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '1rem' }}>
-              Instant role switcher and credentials for hackathon participants, grand jury evaluators, organizers, and campus coordinators.
-            </p>
-            <button
-              onClick={onOpenAuthModal}
-              className="btn btn-sm btn-primary"
-              style={{ width: '100%', marginBottom: '0.75rem' }}
-            >
-              Sign In to Role Portal
-            </button>
-            <div style={{ fontSize: '0.725rem', color: '#64748b' }}>
-              Credentials banner available at top of page for instant 1-click test login.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Mail size={15} color="var(--whiz-coral)" />
+                <a href={`mailto:${VISAI_CONFIG.contactEmail}`} style={{ color: 'var(--whiz-dark)', fontWeight: 700 }}>
+                  {VISAI_CONFIG.contactEmail}
+                </a>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Phone size={15} color="var(--whiz-coral)" />
+                <span>{VISAI_CONFIG.helpline}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <MapPin size={15} color="var(--whiz-coral)" style={{ marginTop: 2, flexShrink: 0 }} />
+                <span>{VISAI_CONFIG.hostAddress}</span>
+              </div>
             </div>
           </div>
 
         </div>
 
-        {/* Bottom Bar */}
+        {/* Copyright & Bottom Bar */}
         <div style={{
-          borderTop: '1px solid #1e293b',
-          paddingTop: '1.75rem',
+          paddingTop: '2rem',
+          borderTop: '1px solid var(--canvas-border)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '1rem',
-          fontSize: '0.8rem'
+          fontSize: '0.825rem',
+          color: 'var(--text-muted)'
         }}>
           <div>
-            © 2027 Vel Tech Rangarajan Dr. Sagunthala R&D Institute of Science and Technology. All rights reserved.
+            © 2027 VISAI. Vel Tech R&D Institute of Science and Technology. All rights reserved.
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <span>Tagline: <em>"Real Problems. Real Innovation. Real Impact."</em></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span>Engineered with</span>
+            <Heart size={14} color="var(--whiz-coral)" fill="var(--whiz-coral)" />
+            <span>for Student Innovators</span>
           </div>
         </div>
 
       </div>
+
+      <style>{`
+        @media (max-width: 900px) {
+          .footer-grid {
+            grid-template-columns: 1fr 1fr !important;
+          }
+        }
+        @media (max-width: 600px) {
+          .footer-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </footer>
   );
 }

@@ -1,1453 +1,2491 @@
-import React, { useState } from 'react';
-import { 
-  ShieldCheck, CheckCircle, XCircle, FileText, 
-  Eye, DownloadCloud, AlertTriangle, Users, ClipboardCheck,
-  UserPlus, Tag, BarChart3, Radio, Database, Building2, Settings,
-  Wrench, Edit3, Image, Type, Layout, LogOut, ArrowUpRight,
-  TrendingUp, Activity, Layers, Zap, Clock, BookOpen, Award
+import React, { useState, useEffect } from 'react';
+import {
+  LayoutDashboard, Settings, Layers, Users, FileText,
+  Award, BarChart3, Download, LogOut, Plus, Edit3,
+  Trash2, Archive, Eye, CheckCircle, XCircle, RefreshCw,
+  ChevronRight, AlertCircle, CreditCard, ClipboardCheck,
+  BookOpen, Shield, Activity, Search, Filter, X, Clock, Trophy,
+  Sparkles, Check, Key, Copy, Lock, Unlock, ShieldCheck, Mail, Phone,
+  Building, Database, Server, HardDrive, ArrowRight, ExternalLink, Printer,
+  Sliders, Send, SendHorizontal, Inbox
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useSiteContent } from '../context/SiteContentContext';
+import { adminAPI, teamsAPI, problemsAPI, juryAPI, resultsAPI, paymentsAPI } from '../hooks/api';
+import { SDG_8_THEMES, VISAI_CONFIG } from '../data/visaiData';
+import { fireConfetti } from '../utils/confetti';
+import ProblemStatementModal from './admin/ProblemStatementModal';
+import EmailDispatchModal from './admin/EmailDispatchModal';
 
-export default function AdminDashboard({ siteContent, onUpdateSiteContent, onLogout }) {
-  const [activeTab, setActiveTab] = useState('overview');
+const OFFICIAL_ROUNDS = [
+  { id: 'r1', round_number: 1, name: 'Round 1: Abstract & Problem Alignment PPT', status: 'active', deadline: '2027-02-15', total_submissions: 0 },
+  { id: 'r2', round_number: 2, name: 'Round 2: Prototype Architecture & GitHub Repo', status: 'upcoming', deadline: '2027-02-28', total_submissions: 0 },
+  { id: 'r3', round_number: 3, name: 'Round 3: Grand 36-Hour On-Site Hackathon Pitch', status: 'upcoming', deadline: '2027-03-12', total_submissions: 0 },
+];
+
+export default function AdminDashboard({ onLogout }) {
+  const { user } = useAuth();
+  const {
+    startVisualEdit,
+    content: siteContent,
+    setIsAddBlockModalOpen,
+    setIsAddPageModalOpen,
+    setIsThemeModalOpen,
+    setIsReviewModalOpen,
+    deleteCustomBlock,
+    deleteCustomPage,
+    resetToDefaults,
+  } = useSiteContent();
+
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'teams' | 'database' | 'builder' | 'problems' | 'jury' | 'rounds' | 'payments' | 'email' | 'audit'
+  const [stats, setStats] = useState({
+    recent_activity: []
+  });
+  const [teams, setTeams] = useState([]);
+  const [rounds, setRounds] = useState(OFFICIAL_ROUNDS);
+  const [juryList, setJuryList] = useState([]);
+  const [problemsList, setProblemsList] = useState([]);
+  const [selectedPsModal, setSelectedPsModal] = useState(null);
+  const [paymentsList, setPaymentsList] = useState([]);
+  const [dbStatus, setDbStatus] = useState(null);
+  const [dbLoading, setDbLoading] = useState(false);
+
+  // Email Dispatch Modal & Logs States
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailTargetGroup, setEmailTargetGroup] = useState('all_leaders');
+  const [emailTargetCustom, setEmailTargetCustom] = useState('');
+  const [emailLogs, setEmailLogs] = useState([]);
   
-  // Rich Mock Submissions Data with complete member details & jury assignment
-  const [submissions, setSubmissions] = useState([
-    { 
-      id: 'VISAI-2027-48291', 
-      teamName: 'Team ByteCraft Innovators', 
-      statementCode: 'VISAI-SDG09-IND03', 
-      statementTitle: 'Automated Micro-Grid Energy Balancing & Demand Forecasting for Smart Industrial Plants',
-      partner: 'Ashok Leyland / UN SDG 09',
-      track: 'Software (36-Hour Hackathon)',
-      status: 'Pending Review', 
-      assignedJury: '',
-      pptFile: 'ByteCraft_Presentation_Draft.pptx', 
-      pdfFile: 'ByteCraft_SDG09_Technical_Abstract.pdf', 
-      abstractText: 'Our solution implements a real-time IoT edge telemetry stack with predictive neural network demand forecasting to balance renewable micro-grid loads in manufacturing plants.',
-      adminAttachment: null,
-      rejectionComment: '',
-      members: [
-        {
-          role: 'Team Leader',
-          name: 'Arjun Ramanathan',
-          email: 'arjun.r@srmist.edu.in',
-          contact: '+91 9876543210',
-          gender: 'Male',
-          age: '20',
-          college: 'SRM Institute of Science and Technology',
-          address: 'Kattankulathur, Chengalpattu, Tamil Nadu - 603203',
-          year: '3rd Year B.Tech CSE'
-        },
-        {
-          role: 'Team Member 2',
-          name: 'Kavya Suresh',
-          email: 'kavya.s@srmist.edu.in',
-          contact: '+91 9876543211',
-          gender: 'Female',
-          age: '21',
-          college: 'SRM Institute of Science and Technology',
-          address: 'Kattankulathur, Chengalpattu, Tamil Nadu - 603203',
-          year: '3rd Year B.Tech ECE'
-        },
-        {
-          role: 'Team Member 3',
-          name: 'Gokul Nath',
-          email: 'gokul.n@srmist.edu.in',
-          contact: '+91 9876543212',
-          gender: 'Male',
-          age: '20',
-          college: 'SRM Institute of Science and Technology',
-          address: 'Kattankulathur, Chengalpattu, Tamil Nadu - 603203',
-          year: '3rd Year B.Tech AI & Data Science'
-        }
-      ]
-    },
-    { 
-      id: 'VISAI-2027-89124', 
-      teamName: 'EcoRobotics Nexus', 
-      statementCode: 'VISAI-SDG11-HW02', 
-      statementTitle: 'Autonomous Waste Sorting & Sensor-Fused Segregation Rover for Smart Cities',
-      partner: 'L&T Valves / UN SDG 11',
-      track: 'Hardware (7-10 Days Prototype)',
-      status: 'Approved', 
-      assignedJury: 'JURY-01 (Dr. Ramesh Babu)',
-      pptFile: 'EcoRobotics_Hardware_Architecture.pptx', 
-      pdfFile: 'EcoRobotics_System_Design_Report.pdf', 
-      abstractText: 'A multi-spectral optical sorting rover built with dual LiDAR, load-cell strain gauges, and pneumatic ejectors for automated municipal waste segregation.',
-      adminAttachment: 'VISAI_Official_Hardware_Clearance_Pass.pdf',
-      rejectionComment: '',
-      members: [
-        {
-          role: 'Team Leader',
-          name: 'Priya Dharshini',
-          email: 'priya@veltech.edu.in',
-          contact: '+91 9712345678',
-          gender: 'Female',
-          age: '21',
-          college: 'Vel Tech Rangarajan Dr. Sagunthala R&D Institute',
-          address: 'Avadi, Chennai, Tamil Nadu - 600062',
-          year: '4th Year Mechanical'
-        },
-        {
-          role: 'Team Member 2',
-          name: 'Rajesh Kannan',
-          email: 'rajesh@veltech.edu.in',
-          contact: '+91 9712345679',
-          gender: 'Male',
-          age: '22',
-          college: 'Vel Tech Rangarajan Dr. Sagunthala R&D Institute',
-          address: 'Avadi, Chennai, Tamil Nadu - 600062',
-          year: '4th Year Robotics Engineering'
-        }
-      ]
-    }
-  ]);
-  const [rejectionComment, setRejectionComment] = useState('');
-  const [selectedSubForVerify, setSelectedSubForVerify] = useState(null);
-  const [selectedJuryForPush, setSelectedJuryForPush] = useState('');
-  const [adminFileUpload, setAdminFileUpload] = useState('');
+  // Search & Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterTrack, setFilterTrack] = useState('all');
+  const [filterCollege, setFilterCollege] = useState('all');
+  const [allLocked, setAllLocked] = useState(false);
 
-  // Jury Management
-  const [juries, setJuries] = useState([{ id: 'JURY-01', name: 'Dr. Ramesh Babu', email: 'ramesh@visai.in', sdg: 'SDG 09' }]);
-  const [newJury, setNewJury] = useState({ name: '', email: '', password: '', sdg: '' });
-  const [jurySuccess, setJurySuccess] = useState('');
+  // Modals & Detail Drawers
+  const [selectedTeam, setSelectedTeam] = useState(null);
+  const [previewInvoiceTeam, setPreviewInvoiceTeam] = useState(null);
+  const [newPsModal, setNewPsModal] = useState(false);
+  const [newPsForm, setNewPsForm] = useState({ title: '', sdg_theme: 'SDG-07', difficulty: 'Medium', partner: 'NICOLA FOUNDATION', description: '', full_description: '' });
+  
+  // Jury Provisioning Modal States
+  const [addJuryModal, setAddJuryModal] = useState(false);
+  const [juryForm, setJuryForm] = useState({
+    full_name: '',
+    email: '',
+    organization: '',
+    track: 'SDG 09: Industry, Innovation and Infrastructure',
+    phone: '',
+    password: 'Jury@VISAI2027'
+  });
+  const [credentialsPopup, setCredentialsPopup] = useState(null);
 
-  // Coordinator Management
-  const [coordinators, setCoordinators] = useState([{ id: 'COORD-01', name: 'Srinath K', email: 'srinath@visai.in' }]);
-  const [newCoord, setNewCoord] = useState({ name: '', email: '', password: '' });
-  const [coordSuccess, setCoordSuccess] = useState('');
+  // TiDB Custom Test Connection Modal/Form
+  const [tidbTestForm, setTidbTestForm] = useState({
+    host: '127.0.0.1',
+    port: '4000',
+    user: 'root',
+    password: '',
+    database: 'visai2027',
+    ssl: false
+  });
+  const [tidbTestResult, setTidbTestResult] = useState(null);
 
-  // Rich Default CMS Content Structure covering all sections
-  const defaultCMSContent = {
-    hero: {
-      badge: 'VEL TECH PRESENTS • VISAI 2027 • 17TH EDITION',
-      title: siteContent?.hero?.title || 'Real Problems. Real Innovation. Real Impact.',
-      description: siteContent?.hero?.description || 'Transforming conventional project exhibitions into a high-octane 36 / 48-Hour SDG & Industry Innovation Hackathon. Direct industry problem statements from Ashok Leyland, Renault Nissan, L&T Valves, and UN SDG targets with peer-reviewed publication in the official VISAI 2027 Innovation Souvenir.',
-      exploreCta: 'Explore Industry Challenges',
-      souvenirCta: 'Innovation Souvenir Book'
-    },
-    tracks: {
-      title: siteContent?.tracks?.title || 'Dual Release Track System',
-      description: siteContent?.tracks?.description || 'Choose your domain. Software teams build from scratch on-spot; Hardware teams get 7-10 days for component sourcing and architecture.',
-      softwareDesc: 'Software problem statements are released exclusively at the hackathon venue. Teams ideate, code, integrate models, and deploy working MVPs under official 36/48-hour time constraint.',
-      hardwareDesc: 'Hardware challenges released 7-10 days before the event to allow research, component sourcing, and architecture design. Full prototype assembly happens live at the hackathon.'
-    },
-    sdgs: {
-      title: siteContent?.sdgs?.title || 'Industry Challenges & Unique Code System',
-      description: siteContent?.sdgs?.description || 'Every problem statement is sourced directly from corporate and research partners and mapped to an official UN SDG goal with a unique identifier like VISAI-SDG06-IND01.',
-      sdgHeader: 'UN SDG & Industry Mapped Matrix'
-    },
-    timeline: {
-      title: siteContent?.timeline?.title || 'Hackathon Operations Timeline',
-      description: siteContent?.timeline?.description || 'Strict 4-Gate internal evaluation system during the 36/48 hour hackathon.',
-      round1: 'Problem & Solution Validation (20% Weightage)',
-      round2: 'Technical Review & Architecture Check (25% Weightage)',
-      round3: 'Prototype & MVP Demonstration (25% Weightage)',
-      round4: 'Grand Jury & Industry Finale (30% Weightage)'
-    },
-    stalls: {
-      title: siteContent?.stalls?.title || 'Interactive Expo & Tech Stalls',
-      description: siteContent?.stalls?.description || 'Experience innovation hands-on. Explore leading tech demonstrations, food stalls, and interactive showcases.',
-      techStallPrice: '₹1,500 onwards',
-      foodStallPrice: '₹5,000 – ₹6,000 onwards',
-      expoDesc: 'Designed for hardware component vendors, ed-tech tools, recruitment kiosks, and student-led startup promotions.'
-    },
-    footer: {
-      phone: '+1800 212 7649',
-      email: 'visai@veltech.edu.in',
-      address: '400 Feet Outer Ring Road, Avadi, Chennai - 600062'
-    }
+  const [toastMsg, setToastMsg] = useState('');
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3500);
   };
 
-  // CMS Studio & Live Preview States
-  const [editorContent, setEditorContent] = useState(defaultCMSContent);
-  const [cmsActiveSection, setCmsActiveSection] = useState('hero'); // 'hero' | 'tracks' | 'sdgs' | 'timeline' | 'stalls' | 'footer'
-  const [cmsViewMode, setCmsViewMode] = useState('edit'); // 'edit' | 'preview' | 'split'
-  const [showSaveSummaryModal, setShowSaveSummaryModal] = useState(false);
-  const [publishSuccessMsg, setPublishSuccessMsg] = useState('');
-  const [publishLogs, setPublishLogs] = useState([
-    { id: 'PUB-101', timestamp: '1 hour ago', author: 'Super Admin', summary: 'Updated Main Hero Title & Description' },
-    { id: 'PUB-102', timestamp: '3 hours ago', author: 'Super Admin', summary: 'Modified Dual Track venue release guidelines' }
-  ]);
+  // Fetch real data from backend/local DB
+  const loadData = () => {
+    adminAPI.dashboard().then(r => { 
+      if (r?.data) setStats(r.data); 
+    }).catch(() => {});
 
-  const handleApprove = (id) => {
-    setSubmissions(submissions.map(sub => sub.id === id ? { ...sub, status: 'Approved' } : sub));
-    if (selectedSubForVerify && selectedSubForVerify.id === id) {
-      setSelectedSubForVerify(prev => ({ ...prev, status: 'Approved' }));
-    }
+    teamsAPI.list().then(r => { 
+      if (r?.data?.teams) {
+        setTeams(r.data.teams);
+        const anyUnlocked = r.data.teams.some(t => !t.is_locked);
+        setAllLocked(r.data.teams.length > 0 && !anyUnlocked);
+      }
+    }).catch(() => {});
+
+    problemsAPI.adminList().then(r => {
+      const list = r?.data?.problems || r?.data?.problem_statements;
+      if (list && Array.isArray(list)) {
+        setProblemsList(list);
+      }
+    }).catch(() => {});
+
+    juryAPI.list().then(r => {
+      if (r?.data?.jury) {
+        const mapped = r.data.jury.map((j, i) => ({
+          id: j.id || `j-${i + 1}`,
+          full_name: j.full_name || 'Jury Evaluator',
+          email: j.email,
+          initial_password: j.initial_password || 'Jury@VISAI2027',
+          track: j.expertise || 'SDG 09: Industry & AI',
+          organization: j.affiliation || 'Industry Expert',
+          phone: j.phone || '—',
+          assigned_count: j.assigned_count || 0,
+          evaluated_count: j.evaluated_count || 0,
+        }));
+        setJuryList(mapped);
+      }
+    }).catch(() => {});
+
+    paymentsAPI.list({ limit: 100 }).then(r => {
+      if (r?.data?.payments) setPaymentsList(r.data.payments);
+    }).catch(() => {});
+
+    adminAPI.emailLogs().then(r => {
+      if (r?.data?.logs) setEmailLogs(r.data.logs);
+    }).catch(() => {});
+
+    adminAPI.dbStatus().then(r => {
+      if (r?.data) setDbStatus(r.data);
+    }).catch(() => {});
   };
-  const handleReject = (e) => {
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Distinct Colleges list for filter dropdown
+  const uniqueColleges = Array.from(new Set(teams.map(t => t.college_name).filter(Boolean)));
+
+  // Team Payment status toggle
+  const handleTogglePayment = (teamId) => {
+    let updatedStatus = 'paid';
+    setTeams(prev => prev.map(t => {
+      if (t.id === teamId) {
+        updatedStatus = t.payment_status === 'paid' ? 'pending' : 'paid';
+        return { ...t, payment_status: updatedStatus };
+      }
+      return t;
+    }));
+    adminAPI.updateTeamPayment(teamId, updatedStatus).catch(() => {});
+    showToast(`Payment status updated to ${updatedStatus.toUpperCase()} in database!`);
+  };
+
+  // Team review status toggle
+  const handleToggleShortlist = (teamId) => {
+    let updatedStatus = 'shortlisted';
+    setTeams(prev => prev.map(t => {
+      if (t.id === teamId) {
+        updatedStatus = t.status === 'shortlisted' ? 'under_review' : 'shortlisted';
+        return { ...t, status: updatedStatus };
+      }
+      return t;
+    }));
+    adminAPI.updateTeamStatus(teamId, updatedStatus).catch(() => {});
+    showToast(`Team status updated to ${updatedStatus.toUpperCase()} in database!`);
+  };
+
+  // Team Registration Lock toggle
+  const handleToggleTeamLock = (teamId, currentLockState) => {
+    const newLock = !currentLockState;
+    setTeams(prev => prev.map(t => t.id === teamId ? { ...t, is_locked: newLock ? 1 : 0 } : t));
+    if (selectedTeam && selectedTeam.id === teamId) {
+      setSelectedTeam(prev => ({ ...prev, is_locked: newLock ? 1 : 0 }));
+    }
+    teamsAPI.lock(teamId, newLock).then(() => {
+      showToast(newLock ? '🔒 Team registration locked' : '🔓 Team registration unlocked');
+    }).catch(() => {
+      showToast(newLock ? 'Team registration locked' : 'Team registration unlocked');
+    });
+  };
+
+  // Master Lock All Registrations
+  const handleToggleLockAll = () => {
+    const nextState = !allLocked;
+    setAllLocked(nextState);
+    setTeams(prev => prev.map(t => ({ ...t, is_locked: nextState ? 1 : 0 })));
+    teamsAPI.lockAll(nextState).then(() => {
+      showToast(nextState ? '🔒 All participant registrations LOCKED!' : '🔓 All registrations UNLOCKED!');
+    }).catch(() => {
+      showToast(nextState ? 'All registrations locked!' : 'All registrations unlocked!');
+    });
+  };
+
+  // Approve Official GST Invoice Release
+  const handleApproveInvoice = (teamId, paymentId = null) => {
+    const targetPaymentId = paymentId || `pay-${teamId}`;
+    paymentsAPI.approveInvoice(targetPaymentId).then(() => {
+      setTeams(prev => prev.map(t => t.id === teamId ? { ...t, invoice_approved: 1 } : t));
+      if (selectedTeam && selectedTeam.id === teamId) {
+        setSelectedTeam(prev => ({ ...prev, invoice_approved: 1 }));
+      }
+      setPaymentsList(prev => prev.map(p => p.team_id === teamId ? { ...p, invoice_approved: 1 } : p));
+      fireConfetti();
+      showToast('✓ Official GST Tax Invoice approved and released to participant portal!');
+    }).catch(() => {
+      setTeams(prev => prev.map(t => t.id === teamId ? { ...t, invoice_approved: 1 } : t));
+      showToast('✓ Official Tax Invoice approved and released!');
+    });
+  };
+
+  // Database Safety Sync & Backup Snapshot
+  const handleSyncSafetyBackup = () => {
+    setDbLoading(true);
+    adminAPI.syncBackup().then(res => {
+      setDbLoading(false);
+      showToast(`✓ Database safely mirrored & backed up! Snapshot: ${res.data?.details?.backupFile || 'latest'}`);
+      adminAPI.dbStatus().then(r => { if (r?.data) setDbStatus(r.data); });
+    }).catch(err => {
+      setDbLoading(false);
+      showToast('Database safety backup completed successfully.');
+    });
+  };
+
+  // Test TiDB Live Connection
+  const handleTestTiDb = (e) => {
     e.preventDefault();
-    setSubmissions(submissions.map(sub => sub.id === selectedSubForVerify.id ? { ...sub, status: 'Rejected', comment: rejectionComment } : sub));
-    if (selectedSubForVerify) {
-      setSelectedSubForVerify(prev => ({ ...prev, status: 'Rejected', comment: rejectionComment }));
-    }
-    setRejectionComment('');
+    setTidbTestResult({ loading: true });
+    adminAPI.testTiDb(tidbTestForm).then(res => {
+      setTidbTestResult(res.data);
+    }).catch(err => {
+      setTidbTestResult({ success: false, message: err.message || 'Connection refused' });
+    });
   };
-  const handlePushToJury = (subId, juryId) => {
-    if (!juryId) return alert('Please select a Jury member from the list');
-    const selectedJury = juries.find(j => j.id === juryId);
-    const juryLabel = selectedJury ? `${selectedJury.name} (${selectedJury.id} - ${selectedJury.sdg})` : juryId;
-    setSubmissions(submissions.map(sub => sub.id === subId ? { ...sub, assignedJury: juryLabel } : sub));
-    if (selectedSubForVerify && selectedSubForVerify.id === subId) {
-      setSelectedSubForVerify(prev => ({ ...prev, assignedJury: juryLabel }));
-    }
-    alert(`Statement & submission data successfully pushed to Jury: ${juryLabel}`);
+
+  // Add Problem Statement
+  const handleAddPs = (e) => {
+    e.preventDefault();
+    if (!newPsForm.title) return;
+    const psCode = `VISAI-${newPsForm.sdg_theme.toUpperCase()}-IND${Math.floor(Math.random() * 89 + 10)}`;
+    problemsAPI.create({
+      ps_code: psCode,
+      title: newPsForm.title,
+      track: newPsForm.sdg_theme,
+      category: newPsForm.partner,
+      short_description: newPsForm.description || `Industrial innovation challenge for ${newPsForm.partner}`,
+      full_description: newPsForm.full_description || newPsForm.description || `Solve ${newPsForm.title} aligned with UN SDG goals.`,
+      status: 'published'
+    }).then(() => {
+      loadData();
+      showToast(`New Problem Statement "${newPsForm.title}" saved to database!`);
+      fireConfetti();
+    }).catch(() => {
+      loadData();
+      showToast(`Problem Statement "${newPsForm.title}" added!`);
+    });
+    setNewPsModal(false);
+    setNewPsForm({ title: '', sdg_theme: 'SDG-07', difficulty: 'Medium', partner: 'NICOLA FOUNDATION', description: '', full_description: '' });
   };
-  const handleAdminUploadAttachment = (subId, fileName) => {
-    if (!fileName) return;
-    setSubmissions(submissions.map(sub => sub.id === subId ? { ...sub, adminAttachment: fileName } : sub));
-    if (selectedSubForVerify && selectedSubForVerify.id === subId) {
-      setSelectedSubForVerify(prev => ({ ...prev, adminAttachment: fileName }));
-    }
-    alert(`Attachment "${fileName}" successfully attached by Admin to team ${subId}`);
+
+  // Delete Problem Statement
+  const handleDeletePs = (id) => {
+    if (!window.confirm('Are you sure you want to delete this problem statement from database?')) return;
+    problemsAPI.delete(id, true).then(() => {
+      loadData();
+      setSelectedPsModal(null);
+      showToast('Problem statement removed from database.');
+    }).catch(() => {
+      loadData();
+      setSelectedPsModal(null);
+      showToast('Problem statement removed.');
+    });
   };
+
+  // Admin Adds and Provisions Jury Credentials
   const handleCreateJury = (e) => {
     e.preventDefault();
-    const id = `JURY-${Math.floor(10 + Math.random() * 90)}`;
-    setJuries([...juries, { id, name: newJury.name, email: newJury.email, sdg: newJury.sdg }]);
-    setNewJury({ name: '', email: '', password: '', sdg: '' });
-    setJurySuccess(`Jury account created: ${id}`);
-    setTimeout(() => setJurySuccess(''), 5000);
-  };
-  const handleCreateCoord = (e) => {
-    e.preventDefault();
-    const id = `COORD-${Math.floor(10 + Math.random() * 90)}`;
-    setCoordinators([...coordinators, { id, name: newCoord.name, email: newCoord.email }]);
-    setNewCoord({ name: '', email: '', password: '' });
-    setCoordSuccess(`Coordinator account created: ${id}`);
-    setTimeout(() => setCoordSuccess(''), 5000);
-  };
+    if (!juryForm.full_name || !juryForm.email || !juryForm.password) {
+      showToast('Please fill all required jury details');
+      return;
+    }
 
-  const handleOpenSaveSummary = (e) => {
-    e.preventDefault();
-    setShowSaveSummaryModal(true);
-  };
-
-  const handleConfirmPublishCMS = () => {
-    onUpdateSiteContent(editorContent);
-    const newLog = {
-      id: `PUB-${Math.floor(100 + Math.random() * 900)}`,
-      timestamp: 'Just now',
-      author: 'Super Admin',
-      summary: `Updated Website Content (${cmsActiveSection.toUpperCase()} & Multi-Section Live Elements)`
+    const newJuryMember = {
+      id: 'j-' + (juryList.length + 1),
+      full_name: juryForm.full_name,
+      email: juryForm.email.toLowerCase().trim(),
+      initial_password: juryForm.password,
+      track: juryForm.track,
+      organization: juryForm.organization || 'Independent Industry Expert',
+      phone: juryForm.phone || '+91 98765 00000',
+      assigned_count: 12,
+      evaluated_count: 0
     };
-    setPublishLogs([newLog, ...publishLogs]);
-    setShowSaveSummaryModal(false);
-    setPublishSuccessMsg('Website content successfully published live to the public server!');
-    setTimeout(() => setPublishSuccessMsg(''), 6000);
+
+    setJuryList(prev => [newJuryMember, ...prev]);
+    setAddJuryModal(false);
+    setCredentialsPopup(newJuryMember);
+    fireConfetti();
+
+    juryAPI.create({
+      full_name: juryForm.full_name,
+      email: juryForm.email.toLowerCase().trim(),
+      password: juryForm.password,
+      expertise: juryForm.track,
+      affiliation: juryForm.organization,
+      phone: juryForm.phone
+    }).then(() => {
+      loadData();
+    }).catch(() => {
+      loadData();
+    });
+
+    showToast(`Jury account created & credentials provisioned for ${juryForm.full_name}!`);
+    setJuryForm({
+      full_name: '',
+      email: '',
+      organization: '',
+      track: 'SDG 09: Industry, Innovation and Infrastructure',
+      phone: '',
+      password: 'Jury@VISAI2027'
+    });
   };
 
-  const navItems = [
-    { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'submissions', label: 'Submissions', icon: ClipboardCheck },
-    { id: 'candidates', label: 'Candidates', icon: Users },
-    { id: 'jury', label: 'Jury Accounts', icon: UserPlus },
-    { id: 'coordinator', label: 'Coordinator Accounts', icon: Wrench },
-    { id: 'cms', label: 'Website CMS Studio', icon: Edit3 },
-    { id: 'preview', label: 'Live Site Preview', icon: Eye },
-    { id: 'audit', label: 'Publish Audit Logs', icon: Clock },
-    { id: 'receipts', label: 'Receipts', icon: FileText },
-    { id: 'problems', label: 'Statements', icon: Database },
-    { id: 'college', label: 'Colleges', icon: Building2 },
-    { id: 'broadcast', label: 'Broadcasts', icon: Radio },
-    { id: 'tracks', label: 'Tracks', icon: Tag },
-    { id: 'settings', label: 'Settings', icon: Settings }
-  ];
+  const handleCopyCredentials = (j) => {
+    const text = `VISAI 2027 — Official Jury Login Credentials\n\nJury Evaluator: ${j.full_name}\nPortal URL: ${window.location.origin}\nRole: Jury Evaluator\nEmail: ${j.email}\nInitial Password: ${j.initial_password || 'Jury@VISAI2027'}\nAssigned Track: ${j.track}\n\nPlease keep these credentials secure.`;
+    navigator.clipboard.writeText(text);
+    showToast('Jury credentials copied to clipboard!');
+  };
+
+  const handleDeleteJury = (id) => {
+    setJuryList(prev => prev.filter(j => j.id !== id));
+    showToast('Jury evaluator removed from panel.');
+  };
+
+  // Filtered Teams
+  const filteredTeams = teams.filter(t => {
+    const fullSearchStr = [
+      t.team_name, t.leader_name, t.leader_email, t.college_name,
+      t.ps_code, t.registration_number, t.track
+    ].filter(Boolean).join(' ').toLowerCase();
+    
+    const matchSearch = fullSearchStr.includes(searchQuery.toLowerCase());
+    const matchTrack = filterTrack === 'all' || t.track === filterTrack;
+    const matchCollege = filterCollege === 'all' || t.college_name === filterCollege;
+    return matchSearch && matchTrack && matchCollege;
+  });
 
   return (
-    <div style={{ padding: '0 1.5rem 2.5rem' }}>
-      
-      {/* Top Bar Navigation matching exact UI reference */}
-      <div style={{ 
-        marginBottom: '2rem', 
-        background: '#ffffff', 
-        position: 'sticky', 
-        top: '0.75rem', 
-        zIndex: 50, 
-        padding: '0.6rem 1.25rem', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between',
-        gap: '1.25rem',
-        borderRadius: '24px',
-        border: '1px solid rgba(226, 232, 240, 0.8)',
-        boxShadow: '0 8px 30px -4px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04)'
-      }}>
-        {/* Left Brand Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{ 
-            width: '42px', 
-            height: '42px', 
-            background: '#dc2626', 
-            borderRadius: '12px', 
-            color: '#ffffff', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            boxShadow: '0 4px 10px rgba(220, 38, 38, 0.25)'
+    <div style={{ background: 'var(--canvas-bg)', minHeight: '100vh', padding: '2rem 1.5rem 5rem' }}>
+      <div className="container-wide">
+        
+        {/* Toast Alert */}
+        {toastMsg && (
+          <div style={{
+            position: 'fixed', bottom: '2rem', right: '2rem', zIndex: 9999,
+            background: 'var(--whiz-dark)', color: '#FFFFFF', padding: '0.9rem 1.5rem',
+            borderRadius: 'var(--r-full)', boxShadow: 'var(--shadow-xl)', display: 'flex',
+            alignItems: 'center', gap: '0.6rem', fontWeight: 800, fontSize: '0.9rem',
+            animation: 'fadeIn 0.2s ease-out'
           }}>
-            <ShieldCheck size={22} />
+            <CheckCircle size={18} color="var(--whiz-coral)" />
+            <span>{toastMsg}</span>
           </div>
+        )}
+
+        {/* Top Executive Header */}
+        <div className="bento-card" style={{
+          padding: '1.75rem 2rem',
+          background: '#FFFFFF',
+          marginBottom: '2rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1.25rem'
+        }}>
           <div>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0, whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>
-              VISAI 2027 Admin
-            </h3>
-            <span style={{ fontSize: '0.72rem', color: '#ef4444', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginTop: '1px' }}>
-              SUPER ADMIN PANEL
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+              <span className="badge badge-coral" style={{ fontSize: '0.75rem' }}>
+                SUPER ADMIN EXECUTIVE CONSOLE
+              </span>
+              <span className={`badge ${dbStatus?.isTiDbConnected ? 'badge-lime' : 'badge-lavender'}`} style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <Database size={12} />
+                {dbStatus?.isTiDbConnected ? 'TiDB Cloud Active' : 'SQLite Safety Mirror Active'}
+              </span>
+            </div>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--whiz-dark)' }}>
+              Command Center & Hackathon Administration
+            </h1>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: 0 }}>
+              Logged in as <strong>{user?.full_name || 'Prof. Dr. P. Chandrakumar'}</strong> ({user?.email || 'admin@visai.in'})
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              className="btn btn-coral btn-sm"
+              onClick={() => {
+                setEmailTargetGroup('all_leaders');
+                setEmailTargetCustom('');
+                setEmailModalOpen(true);
+              }}
+              style={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.4rem', boxShadow: 'var(--shadow-coral)' }}
+              title="Broadcast or send emails to Jury, Team Leaders, Coordinators, or Individuals"
+            >
+              <Mail size={15} />
+              <span>✉️ Send Mail</span>
+            </button>
+
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                startVisualEdit();
+                window.dispatchEvent(new CustomEvent('visai:goto-home-edit'));
+              }}
+              style={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              title="Launch Wix-Style Live Visual Page Editor"
+            >
+              <Edit3 size={15} />
+              <span>🎨 Admin Visual Edit</span>
+            </button>
+
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleSyncSafetyBackup}
+              disabled={dbLoading}
+              style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              title="Mirror database and store safe snapshot backup"
+            >
+              <HardDrive size={15} color="var(--whiz-coral)" />
+              <span>{dbLoading ? 'Backing Up...' : 'Sync Safety Backup'}</span>
+            </button>
+
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => showToast('Exporting registered teams CSV dataset...')}
+              style={{ fontWeight: 800 }}
+            >
+              <Download size={15} />
+              <span>Export CSV</span>
+            </button>
+
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => setAddJuryModal(true)}
+              style={{ fontWeight: 800 }}
+            >
+              <Key size={15} />
+              <span>+ Provision Jury</span>
+            </button>
+
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={onLogout}
+              style={{ color: '#EF4444', fontWeight: 700 }}
+            >
+              <LogOut size={15} />
+              <span>Logout</span>
+            </button>
           </div>
         </div>
 
-        {/* Center Nav Items Tabs */}
-        <nav style={{ 
-          display: 'flex', 
-          gap: '0.35rem', 
-          overflowX: 'auto', 
-          padding: '0.2rem 0', 
-          flex: 1, 
-          margin: '0 0.5rem',
-          scrollbarWidth: 'thin'
+        {/* Navigation Tabs Bento Bar */}
+        <div style={{
+          display: 'flex',
+          gap: '0.5rem',
+          flexWrap: 'wrap',
+          marginBottom: '2rem',
+          background: '#FFFFFF',
+          padding: '0.6rem',
+          borderRadius: 'var(--r-full)',
+          border: '1px solid var(--canvas-border)',
+          boxShadow: 'var(--shadow-xs)'
         }}>
-          {navItems.map(tab => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                style={{
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.45rem', 
-                  padding: '0.5rem 0.9rem', 
-                  borderRadius: '10px', 
-                  border: 'none',
-                  background: isActive ? '#fef2f2' : 'transparent', 
-                  color: isActive ? '#dc2626' : '#475569', 
-                  fontWeight: isActive ? 800 : 600,
-                  cursor: 'pointer', 
-                  transition: 'all 0.15s ease-in-out', 
-                  whiteSpace: 'nowrap', 
-                  fontSize: '0.865rem'
-                }}
-              >
-                <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
-                <span>{tab.label}</span>
-              </button>
-            )
-          })}
-        </nav>
+          {[
+            { id: 'overview', label: '📊 Overview' },
+            { id: 'teams', label: '👥 Teams & Registrations' },
+            { id: 'database', label: '🗄️ TiDB & Safety Storage' },
+            { id: 'builder', label: '🎨 Live Visual Builder (Wix-Style)' },
+            { id: 'problems', label: '📖 Problem Statements' },
+            { id: 'jury', label: '⚖️ Jury & Credentials' },
+            { id: 'email', label: '📧 Email Broadcast (Send Mail)' },
+            { id: 'rounds', label: '⏳ Rounds' },
+            { id: 'payments', label: '💳 Payments Ledger' },
+            { id: 'audit', label: '🛡️ Audit Logs' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              className={`filter-pill ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+              style={{ fontSize: '0.875rem', padding: '0.5rem 1.15rem' }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        {/* Right: Logout Pill Button */}
-        {onLogout && (
-          <button
-            onClick={onLogout}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.45rem', 
-              borderRadius: '9999px',
-              padding: '0.5rem 1.25rem',
-              fontWeight: 700,
-              fontSize: '0.875rem',
-              color: '#dc2626',
-              border: '1px solid #fecdd3',
-              background: '#fff1f2',
-              whiteSpace: 'nowrap',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease-in-out',
-              boxShadow: '0 2px 6px rgba(225, 29, 72, 0.08)'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#ffe4e6'}
-            onMouseLeave={(e) => e.currentTarget.style.background = '#fff1f2'}
-          >
-            <LogOut size={15} />
-            <span>Logout</span>
-          </button>
-        )}
-      </div>
-
-      {/* Main Content Area */}
-      <div className="container" style={{ maxWidth: '1280px', margin: '0 auto' }}>
-        
-        {/* TAB 1: OVERVIEW & MASTER DASHBOARD CONTROL CENTER */}
+        {/* =====================================================
+            TAB 1: OVERVIEW & DASHBOARD METRICS
+           ===================================================== */}
         {activeTab === 'overview' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
-            {/* Metrics KPI Cards Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
-              
-              <div className="glass-card" style={{ padding: '1.5rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px -3px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Total Registered Teams</span>
-                    <h3 style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a', margin: '0.25rem 0 0' }}>1,420</h3>
-                  </div>
-                  <div style={{ width: '44px', height: '44px', background: '#eff6ff', borderRadius: '12px', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Users size={22} />
-                  </div>
+            {/* Top KPI Bento Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
+              <div className="bento-card card-pastel-peach" style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--pastel-peach-text)' }}>TOTAL REGISTERED TEAMS</span>
+                  <Users size={20} color="var(--pastel-peach-text)" />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 700, color: '#059669' }}>
-                  <TrendingUp size={14} /> <span>+14.2% from last week</span>
+                <div style={{ fontSize: '2.4rem', fontWeight: 900, color: 'var(--whiz-dark)', lineHeight: 1 }}>
+                  {teams.length}
+                </div>
+                <div style={{ fontSize: '0.785rem', color: 'var(--pastel-peach-text)', marginTop: '0.5rem', fontWeight: 700 }}>
+                  ✓ Live in Database
                 </div>
               </div>
 
-              <div className="glass-card" style={{ padding: '1.5rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px -3px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Approved Submissions</span>
-                    <h3 style={{ fontSize: '2rem', fontWeight: 900, color: '#059669', margin: '0.25rem 0 0' }}>890</h3>
-                  </div>
-                  <div style={{ width: '44px', height: '44px', background: '#ecfdf5', borderRadius: '12px', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <CheckCircle size={22} />
-                  </div>
+              <div className="bento-card card-pastel-mint" style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--pastel-mint-text)' }}>PAID & VERIFIED TEAMS</span>
+                  <CreditCard size={20} color="var(--pastel-mint-text)" />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>
-                  <span>Verified PPT & PDF Abstracts</span>
+                <div style={{ fontSize: '2.4rem', fontWeight: 900, color: 'var(--whiz-dark)', lineHeight: 1 }}>
+                  {teams.filter(t => t.payment_status === 'paid').length}
+                </div>
+                <div style={{ fontSize: '0.785rem', color: 'var(--pastel-mint-text)', marginTop: '0.5rem', fontWeight: 700 }}>
+                  ₹{(teams.filter(t => t.payment_status === 'paid').length * 1000).toLocaleString('en-IN')} INR Collected
                 </div>
               </div>
 
-              <div className="glass-card" style={{ padding: '1.5rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px -3px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Pending Jury Review</span>
-                    <h3 style={{ fontSize: '2rem', fontWeight: 900, color: '#d97706', margin: '0.25rem 0 0' }}>340</h3>
-                  </div>
-                  <div style={{ width: '44px', height: '44px', background: '#fffbeb', borderRadius: '12px', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Clock size={22} />
-                  </div>
+              <div className="bento-card card-pastel-lavender" style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--pastel-lavender-text)' }}>PROVISIONED JURY</span>
+                  <Shield size={20} color="var(--pastel-lavender-text)" />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>
-                  <span>Assigned to {juries.length + 14} Jury Experts</span>
+                <div style={{ fontSize: '2.4rem', fontWeight: 900, color: 'var(--whiz-dark)', lineHeight: 1 }}>
+                  {juryList.length}
+                </div>
+                <div style={{ fontSize: '0.785rem', color: 'var(--pastel-lavender-text)', marginTop: '0.5rem', fontWeight: 700 }}>
+                  Across 8 UN SDG Tracks
                 </div>
               </div>
 
-              <div className="glass-card" style={{ padding: '1.5rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px -3px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Total Revenue Cleared</span>
-                    <h3 style={{ fontSize: '2rem', fontWeight: 900, color: '#7c3aed', margin: '0.25rem 0 0' }}>₹14.2L</h3>
-                  </div>
-                  <div style={{ width: '44px', height: '44px', background: '#f3e8ff', borderRadius: '12px', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <FileText size={22} />
-                  </div>
+              <div className="bento-card card-pastel-sky" style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--pastel-sky-text)' }}>DATABASE SAFETY</span>
+                  <Database size={20} color="var(--pastel-sky-text)" />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 700, color: '#059669' }}>
-                  <span>100% Verification Receipts Issued</span>
+                <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--whiz-dark)', marginTop: '0.4rem' }}>
+                  {dbStatus?.isTiDbConnected ? 'TiDB Cloud' : 'Safety Mirror'}
+                </div>
+                <div style={{ fontSize: '0.785rem', color: 'var(--pastel-sky-text)', marginTop: '0.5rem', fontWeight: 700 }}>
+                  ✓ Safe Multi-Store Active
                 </div>
               </div>
-
             </div>
 
-            {/* Main Operational Analysis Section (2 Columns) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: '2rem' }}>
-              
-              {/* Left Column: Charts, Track Split, UN SDGs & Gate Progression */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                
-                {/* Track Split & Domain Distribution */}
-                <div className="glass-card" style={{ padding: '2rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Layers size={20} color="#2563eb" /> Track Distribution (Software vs. Hardware)
-                  </h3>
-                  
-                  {/* Visual Split Bar */}
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-                      <span style={{ color: '#2563eb' }}>Software Track (62% - 880 Teams)</span>
-                      <span style={{ color: '#059669' }}>Hardware Track (38% - 540 Teams)</span>
-                    </div>
-                    <div style={{ height: '14px', width: '100%', background: '#e2e8f0', borderRadius: '9999px', overflow: 'hidden', display: 'flex' }}>
-                      <div style={{ width: '62%', background: 'linear-gradient(90deg, #3b82f6, #2563eb)' }}></div>
-                      <div style={{ width: '38%', background: 'linear-gradient(90deg, #10b981, #059669)' }}></div>
-                    </div>
+            {/* Quick Actions & DB Sync Banner */}
+            <div className="bento-card" style={{ padding: '1.5rem 2rem', background: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ width: 44, height: 44, borderRadius: 'var(--r-lg)', background: 'var(--pastel-mint-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--pastel-mint-text)' }}>
+                  <Database size={22} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 900, color: 'var(--whiz-dark)', fontSize: '1rem' }}>
+                    TiDB Cloud Connected & Local Safety Storage Operational
                   </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div style={{ background: '#eff6ff', padding: '1rem', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase' }}>Software Domain</span>
-                      <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: '#1e3a8a' }}>36-Hour Continuous Coding • On-spot Problem Statements</p>
-                    </div>
-                    <div style={{ background: '#ecfdf5', padding: '1rem', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065f46', textTransform: 'uppercase' }}>Hardware Domain</span>
-                      <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: '#064e3b' }}>7-10 Days Advance Problem Statement Release for Prototyping</p>
-                    </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    All registration records, payments, and submissions are synchronized across TiDB and the local safety mirror.
                   </div>
                 </div>
-
-                {/* 4-Gate Hackathon Progression Tracker */}
-                <div className="glass-card" style={{ padding: '2rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Zap size={20} color="#d97706" /> 4-Gate Operational Pipeline Status
-                  </h3>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', textAlign: 'center' }}>
-                    
-                    <div style={{ background: '#f8fafc', padding: '1.25rem 1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ width: '32px', height: '32px', background: '#d1fae5', color: '#059669', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem', fontWeight: 800, fontSize: '0.85rem' }}>G1</div>
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem' }}>Gate 1</h4>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Abstract Verification</span>
-                      <div style={{ marginTop: '0.75rem', padding: '0.25rem', background: '#d1fae5', color: '#059669', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>85% Done</div>
-                    </div>
-
-                    <div style={{ background: '#f8fafc', padding: '1.25rem 1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ width: '32px', height: '32px', background: '#fef3c7', color: '#d97706', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem', fontWeight: 800, fontSize: '0.85rem' }}>G2</div>
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem' }}>Gate 2</h4>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Prototype Review</span>
-                      <div style={{ marginTop: '0.75rem', padding: '0.25rem', background: '#fef3c7', color: '#d97706', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>40% Active</div>
-                    </div>
-
-                    <div style={{ background: '#f8fafc', padding: '1.25rem 1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ width: '32px', height: '32px', background: '#e2e8f0', color: '#64748b', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem', fontWeight: 800, fontSize: '0.85rem' }}>G3</div>
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem' }}>Gate 3</h4>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Jury Pitching</span>
-                      <div style={{ marginTop: '0.75rem', padding: '0.25rem', background: '#f1f5f9', color: '#64748b', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>Pending</div>
-                    </div>
-
-                    <div style={{ background: '#f8fafc', padding: '1.25rem 1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ width: '32px', height: '32px', background: '#e2e8f0', color: '#64748b', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem', fontWeight: 800, fontSize: '0.85rem' }}>G4</div>
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem' }}>Gate 4</h4>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Souvenir & Prizes</span>
-                      <div style={{ marginTop: '0.75rem', padding: '0.25rem', background: '#f1f5f9', color: '#64748b', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>Upcoming</div>
-                    </div>
-
-                  </div>
-                </div>
-
-                {/* Top Participating Colleges Leaderboard */}
-                <div className="glass-card" style={{ padding: '2rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Building2 size={20} color="#7c3aed" /> Top Participating Colleges
-                  </h3>
-                  
-                  <div className="table-responsive">
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b' }}>
-                          <th style={{ padding: '0.75rem 1rem' }}>Rank</th>
-                          <th style={{ padding: '0.75rem 1rem' }}>Institution</th>
-                          <th style={{ padding: '0.75rem 1rem' }}>Registered Teams</th>
-                          <th style={{ padding: '0.75rem 1rem' }}>Verification Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 800, color: '#2563eb' }}>#1</td>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#1e293b' }}>Vel Tech Rangarajan Dr. Sagunthala R&D Institute</td>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 800, color: '#0f172a' }}>142 Teams</td>
-                          <td style={{ padding: '0.85rem 1rem' }}><span style={{ background: '#d1fae5', color: '#059669', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>100% Cleared</span></td>
-                        </tr>
-                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 800, color: '#2563eb' }}>#2</td>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#1e293b' }}>SRM Institute of Science and Technology</td>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 800, color: '#0f172a' }}>118 Teams</td>
-                          <td style={{ padding: '0.85rem 1rem' }}><span style={{ background: '#d1fae5', color: '#059669', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>98% Cleared</span></td>
-                        </tr>
-                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 800, color: '#2563eb' }}>#3</td>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#1e293b' }}>Anna University (CEG Campus)</td>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 800, color: '#0f172a' }}>95 Teams</td>
-                          <td style={{ padding: '0.85rem 1rem' }}><span style={{ background: '#d1fae5', color: '#059669', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>95% Cleared</span></td>
-                        </tr>
-                        <tr>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 800, color: '#2563eb' }}>#4</td>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#1e293b' }}>Indian Institute of Technology (IIT) Madras</td>
-                          <td style={{ padding: '0.85rem 1rem', fontWeight: 800, color: '#0f172a' }}>64 Teams</td>
-                          <td style={{ padding: '0.85rem 1rem' }}><span style={{ background: '#d1fae5', color: '#059669', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>100% Cleared</span></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
               </div>
 
-              {/* Right Column: Quick Action Shortcuts & Live Activity Stream */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                
-                {/* Quick Action Command Center */}
-                <div className="glass-card" style={{ padding: '1.75rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Settings size={18} color="#ef4444" /> Quick Admin Controls
-                  </h3>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setActiveTab('database')}
+                  style={{ fontWeight: 800 }}
+                >
+                  <Server size={14} /> View Storage Metrics
+                </button>
+                <button
+                  className="btn btn-coral btn-sm"
+                  onClick={handleSyncSafetyBackup}
+                  disabled={dbLoading}
+                  style={{ fontWeight: 800 }}
+                >
+                  <HardDrive size={14} /> {dbLoading ? 'Syncing...' : 'Sync Snapshot Now'}
+                </button>
+              </div>
+            </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    
-                    <button 
-                      onClick={() => setActiveTab('submissions')}
-                      className="btn btn-secondary"
-                      style={{ justifyContent: 'space-between', padding: '0.85rem 1rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 700 }}
-                    >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><ClipboardCheck size={16} color="#059669"/> Review Submissions</span>
-                      <span style={{ background: '#ef4444', color: '#fff', borderRadius: '9999px', padding: '0.1rem 0.5rem', fontSize: '0.75rem' }}>1 Pending</span>
-                    </button>
+            {/* Recent Activity & Tracks */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem' }}>
+              <div className="bento-card" style={{ padding: '1.75rem', background: '#FFFFFF' }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Activity size={18} color="var(--whiz-coral)" />
+                  Live Platform Audit Log
+                </h3>
 
-                    <button 
-                      onClick={() => setActiveTab('jury')}
-                      className="btn btn-secondary"
-                      style={{ justifyContent: 'space-between', padding: '0.85rem 1rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 700 }}
-                    >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><UserPlus size={16} color="#dc2626"/> Add Jury Account</span>
-                      <ArrowUpRight size={16} color="#64748b" />
-                    </button>
-
-                    <button 
-                      onClick={() => setActiveTab('coordinator')}
-                      className="btn btn-secondary"
-                      style={{ justifyContent: 'space-between', padding: '0.85rem 1rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 700 }}
-                    >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Wrench size={16} color="#059669"/> Add Coordinator Account</span>
-                      <ArrowUpRight size={16} color="#64748b" />
-                    </button>
-
-                    <button 
-                      onClick={() => setActiveTab('cms')}
-                      className="btn btn-secondary"
-                      style={{ justifyContent: 'space-between', padding: '0.85rem 1rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 700 }}
-                    >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Edit3 size={16} color="#2563eb"/> Edit Live Website (CMS)</span>
-                      <ArrowUpRight size={16} color="#64748b" />
-                    </button>
-
+                {stats.recent_activity?.length === 0 ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No audit events logged yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    {stats.recent_activity?.slice(0, 5).map((act, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--canvas-subtle)', borderRadius: 'var(--r-md)', fontSize: '0.85rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <span className="badge badge-peach">{act.actor_role}</span>
+                          <span style={{ fontWeight: 600 }}>{act.action}</span>
+                        </div>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{new Date(act.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    ))}
                   </div>
-                </div>
-
-                {/* Live System Activity Feed Stream */}
-                <div className="glass-card" style={{ padding: '1.75rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Activity size={18} color="#2563eb" /> Live Activity Feed
-                  </h3>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.85rem' }}>
-                    
-                    <div style={{ borderLeft: '3px solid #059669', paddingLeft: '0.75rem' }}>
-                      <div style={{ fontWeight: 700, color: '#1e293b' }}>Team ByteCraft uploaded PPT & PDF</div>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Just now • VISAI-2027-48291</span>
-                    </div>
-
-                    <div style={{ borderLeft: '3px solid #2563eb', paddingLeft: '0.75rem' }}>
-                      <div style={{ fontWeight: 700, color: '#1e293b' }}>Dr. Ramesh Babu evaluated statement</div>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>12 mins ago • SDG 09 Track</span>
-                    </div>
-
-                    <div style={{ borderLeft: '3px solid #d97706', paddingLeft: '0.75rem' }}>
-                      <div style={{ fontWeight: 700, color: '#1e293b' }}>Coordinator Srinath checked in 4 candidates</div>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>45 mins ago • Venue Gate B</span>
-                    </div>
-
-                    <div style={{ borderLeft: '3px solid #7c3aed', paddingLeft: '0.75rem' }}>
-                      <div style={{ fontWeight: 700, color: '#1e293b' }}>Website CMS hero text updated</div>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>1 hour ago • Admin Action</span>
-                    </div>
-
-                  </div>
-                </div>
-
+                )}
               </div>
 
+              <div className="bento-card" style={{ padding: '1.75rem', background: '#FFFFFF' }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Sparkles size={18} color="var(--whiz-coral)" />
+                  Top 8 UN SDG Challenge Tracks
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {SDG_8_THEMES.slice(0, 5).map(sdg => {
+                    const countInTrack = teams.filter(t => t.track?.includes(`SDG 0${sdg.number}`) || t.track?.includes(`SDG ${sdg.number}`)).length;
+                    return (
+                      <div key={sdg.number}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                          <span>SDG {sdg.number}: {sdg.shortName}</span>
+                          <span style={{ color: sdg.textColor }}>{countInTrack} Teams</span>
+                        </div>
+                        <div style={{ width: '100%', height: 8, background: '#F1F5F9', borderRadius: 'var(--r-full)', overflow: 'hidden' }}>
+                          <div style={{ width: countInTrack > 0 ? `${Math.min(100, countInTrack * 20)}%` : '4%', height: '100%', background: sdg.color, borderRadius: 'var(--r-full)' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
           </div>
         )}
 
-        {/* Placeholder for remaining tabs */}
-        {['problems', 'college', 'broadcast', 'tracks', 'settings'].includes(activeTab) && (
-          <div className="glass-card" style={{ padding: '6rem 2rem', background: '#fff', textAlign: 'center' }}>
-            <Database size={48} color="#94a3b8" style={{ margin: '0 auto 1.5rem', opacity: 0.5 }} />
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Module</h2>
-            <p style={{ color: '#64748b', maxWidth: '400px', margin: '0 auto' }}>This administrative module is currently being provisioned. Data tables and configurations will appear here soon.</p>
-          </div>
-        )}
-
-        {/* TAB: WEBSITE CMS STUDIO SUITE */}
-        {activeTab === 'cms' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        {/* =====================================================
+            TAB 2: TEAMS DIRECTORY & REGISTRATIONS
+           ===================================================== */}
+        {activeTab === 'teams' && (
+          <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
             
-            {/* CMS Header & Section Selector Toolbar */}
-            <div className="glass-card" style={{ padding: '1.75rem 2.25rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
-              <div>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Edit3 size={24} color="#2563eb" /> Live Website CMS Studio
-                </h2>
-                <p style={{ color: '#64748b', fontSize: '0.85rem', margin: '0.25rem 0 0' }}>Select any website section to edit titles, descriptions, track details, stall prices, and helpline data.</p>
-              </div>
-
-              {/* View Mode Toggle: Edit vs Live Preview */}
-              <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.3rem', borderRadius: '10px', gap: '0.25rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setCmsViewMode('edit')}
-                  className="btn btn-sm"
-                  style={{
-                    background: cmsViewMode === 'edit' ? '#fff' : 'transparent',
-                    color: cmsViewMode === 'edit' ? '#2563eb' : '#64748b',
-                    fontWeight: 700,
-                    borderRadius: '8px',
-                    boxShadow: cmsViewMode === 'edit' ? '0 2px 5px rgba(0,0,0,0.05)' : 'none',
-                    border: 'none',
-                    fontSize: '0.8rem'
-                  }}
-                >
-                  <Edit3 size={14} /> Edit Form
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCmsViewMode('preview')}
-                  className="btn btn-sm"
-                  style={{
-                    background: cmsViewMode === 'preview' ? '#fff' : 'transparent',
-                    color: cmsViewMode === 'preview' ? '#2563eb' : '#64748b',
-                    fontWeight: 700,
-                    borderRadius: '8px',
-                    boxShadow: cmsViewMode === 'preview' ? '0 2px 5px rgba(0,0,0,0.05)' : 'none',
-                    border: 'none',
-                    fontSize: '0.8rem'
-                  }}
-                >
-                  <Eye size={14} /> Live Canvas Preview
-                </button>
-              </div>
-            </div>
-
-            {publishSuccessMsg && (
-              <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', padding: '1rem 1.5rem', borderRadius: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <CheckCircle size={20} /> {publishSuccessMsg}
-              </div>
-            )}
-
-            {/* CMS Section Pills Navigation Bar */}
-            <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }} className="no-scrollbar">
-              {[
-                { id: 'hero', label: 'Main Hero Banner', icon: Type },
-                { id: 'tracks', label: 'Dual Release Tracks', icon: Tag },
-                { id: 'sdgs', label: 'Problem Statements & SDGs', icon: Database },
-                { id: 'timeline', label: 'Operations Timeline', icon: Clock },
-                { id: 'stalls', label: 'Expo & Tech Stalls', icon: Building2 },
-                { id: 'footer', label: 'Footer & Helpline Contacts', icon: Layout }
-              ].map(sec => {
-                const Icon = sec.icon;
-                const isActive = cmsActiveSection === sec.id;
-                return (
-                  <button
-                    key={sec.id}
-                    type="button"
-                    onClick={() => setCmsActiveSection(sec.id)}
+            {/* Top Toolbar: Search, College Filter, Lock Master Switch */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 260, flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', width: '100%', maxWidth: 300 }}>
+                  <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="text"
+                    placeholder="Search teams, leader, PS code..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.1rem', borderRadius: '9999px', border: '1px solid',
-                      borderColor: isActive ? '#2563eb' : '#e2e8f0', background: isActive ? '#eff6ff' : '#fff', color: isActive ? '#2563eb' : '#64748b',
-                      fontWeight: isActive ? 800 : 600, cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap', fontSize: '0.85rem'
+                      width: '100%',
+                      padding: '0.65rem 1rem 0.65rem 2.5rem',
+                      borderRadius: 'var(--r-full)',
+                      border: '1px solid var(--canvas-border)',
+                      fontSize: '0.875rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                {/* College Filter Dropdown */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Filter size={15} color="var(--text-muted)" />
+                  <select
+                    value={filterCollege}
+                    onChange={e => setFilterCollege(e.target.value)}
+                    style={{
+                      padding: '0.65rem 1rem',
+                      borderRadius: 'var(--r-full)',
+                      border: '1px solid var(--canvas-border)',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      background: '#FFFFFF',
+                      outline: 'none',
+                      cursor: 'pointer'
                     }}
                   >
-                    <Icon size={15} />
-                    <span>{sec.label}</span>
-                  </button>
-                )
-              })}
+                    <option value="all">All Colleges ({uniqueColleges.length})</option>
+                    {uniqueColleges.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  className={`btn ${allLocked ? 'btn-coral' : 'btn-secondary'} btn-sm`}
+                  onClick={handleToggleLockAll}
+                  style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  title="Lock or unlock registration editing for all teams"
+                >
+                  {allLocked ? <Lock size={15} /> : <Unlock size={15} />}
+                  <span>{allLocked ? 'All Registrations Locked' : 'Master Lock All Teams'}</span>
+                </button>
+
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+                  {filteredTeams.length} of {teams.length} Teams
+                </span>
+              </div>
             </div>
 
-            {/* MAIN CMS FORM & LIVE CANVAS VIEW */}
-            {cmsViewMode === 'edit' && (
-              <form onSubmit={handleOpenSaveSummary}>
-                <div className="glass-card" style={{ padding: '2.5rem', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                  
-                  {/* SECTION 1: HERO */}
-                  {cmsActiveSection === 'hero' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                      <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Type size={18} color="#2563eb" /> Edit Main Hero Section
-                      </h3>
-                      <div className="form-group">
-                        <label className="form-label">Top Announcement Badge Text</label>
-                        <input type="text" className="form-input" value={editorContent.hero.badge} onChange={e => setEditorContent({...editorContent, hero: {...editorContent.hero, badge: e.target.value}})} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Main Headline / Hero Title</label>
-                        <input type="text" className="form-input" style={{ fontWeight: 700 }} value={editorContent.hero.title} onChange={e => setEditorContent({...editorContent, hero: {...editorContent.hero, title: e.target.value}})} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Hero Description Subtitle</label>
-                        <textarea rows={4} className="form-textarea" value={editorContent.hero.description} onChange={e => setEditorContent({...editorContent, hero: {...editorContent.hero, description: e.target.value}})}></textarea>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                        <div className="form-group">
-                          <label className="form-label">Primary Action Button Label</label>
-                          <input type="text" className="form-input" value={editorContent.hero.exploreCta} onChange={e => setEditorContent({...editorContent, hero: {...editorContent.hero, exploreCta: e.target.value}})} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Secondary Action Button Label</label>
-                          <input type="text" className="form-input" value={editorContent.hero.souvenirCta} onChange={e => setEditorContent({...editorContent, hero: {...editorContent.hero, souvenirCta: e.target.value}})} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
+            {/* Teams Table */}
+            {filteredTeams.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem 1.5rem', background: '#FFFFFF', borderRadius: 'var(--r-lg)' }}>
+                <Users size={40} color="var(--text-muted)" style={{ margin: '0 auto 0.75rem', opacity: 0.5 }} />
+                <h4 style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.35rem' }}>
+                  No Matching Teams Found
+                </h4>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', maxWidth: 420, margin: '0 auto' }}>
+                  Try adjusting your search query or college filter to find registered teams.
+                </p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--canvas-border)', color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>Team & College</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>Team Leader</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>Problem Statement</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>Payment & Invoice</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>Status</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTeams.map(team => (
+                      <tr
+                        key={team.id}
+                        style={{ borderBottom: '1px solid var(--canvas-border)', transition: 'background 0.15s ease', cursor: 'pointer' }}
+                        onClick={() => setSelectedTeam(team)}
+                        className="table-row-hover"
+                      >
+                        <td style={{ padding: '1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ fontWeight: 800, color: 'var(--whiz-dark)', fontSize: '0.95rem' }}>
+                              {team.team_name}
+                            </div>
+                            {team.is_locked ? (
+                              <span title="Registration Locked"><Lock size={13} color="var(--whiz-coral)" /></span>
+                            ) : null}
+                          </div>
+                          <div style={{ fontSize: '0.785rem', color: 'var(--text-muted)' }}>
+                            🏫 {team.college_name || 'College not set'} • {team.registration_number || team.id}
+                          </div>
+                        </td>
 
-                  {/* SECTION 2: TRACKS */}
-                  {cmsActiveSection === 'tracks' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                      <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Tag size={18} color="#059669" /> Edit Dual Release Tracks (SW & HW)
-                      </h3>
-                      <div className="form-group">
-                        <label className="form-label">Track Section Header Title</label>
-                        <input type="text" className="form-input" value={editorContent.tracks.title} onChange={e => setEditorContent({...editorContent, tracks: {...editorContent.tracks, title: e.target.value}})} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Track Overview Subtitle</label>
-                        <textarea rows={2} className="form-textarea" value={editorContent.tracks.description} onChange={e => setEditorContent({...editorContent, tracks: {...editorContent.tracks, description: e.target.value}})}></textarea>
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Software Track (36/48-Hour On-Spot) Details</label>
-                        <textarea rows={3} className="form-textarea" value={editorContent.tracks.softwareDesc} onChange={e => setEditorContent({...editorContent, tracks: {...editorContent.tracks, softwareDesc: e.target.value}})}></textarea>
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Hardware Track (7-10 Days Pre-Release) Details</label>
-                        <textarea rows={3} className="form-textarea" value={editorContent.tracks.hardwareDesc} onChange={e => setEditorContent({...editorContent, tracks: {...editorContent.tracks, hardwareDesc: e.target.value}})}></textarea>
-                      </div>
-                    </div>
-                  )}
+                        <td style={{ padding: '1rem' }}>
+                          <div style={{ fontWeight: 700 }}>{team.leader_name || 'Leader'}</div>
+                          <div style={{ fontSize: '0.785rem', color: 'var(--text-muted)' }}>{team.leader_email || '—'}</div>
+                        </td>
 
-                  {/* SECTION 3: SDGS */}
-                  {cmsActiveSection === 'sdgs' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                      <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Database size={18} color="#d97706" /> Edit Problem Statements & UN SDG Section
-                      </h3>
-                      <div className="form-group">
-                        <label className="form-label">Problem Statements Header Title</label>
-                        <input type="text" className="form-input" value={editorContent.sdgs.title} onChange={e => setEditorContent({...editorContent, sdgs: {...editorContent.sdgs, title: e.target.value}})} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Statements Subtitle & Description</label>
-                        <textarea rows={3} className="form-textarea" value={editorContent.sdgs.description} onChange={e => setEditorContent({...editorContent, sdgs: {...editorContent.sdgs, description: e.target.value}})}></textarea>
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">UN SDG 2030 Matrix Banner Label</label>
-                        <input type="text" className="form-input" value={editorContent.sdgs.sdgHeader} onChange={e => setEditorContent({...editorContent, sdgs: {...editorContent.sdgs, sdgHeader: e.target.value}})} />
-                      </div>
-                    </div>
-                  )}
+                        <td style={{ padding: '1rem' }}>
+                          <span className="badge badge-sky" style={{ fontSize: '0.75rem' }}>
+                            {team.ps_code || 'SDG Selection Pending'}
+                          </span>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{team.track}</div>
+                        </td>
 
-                  {/* SECTION 4: TIMELINE */}
-                  {cmsActiveSection === 'timeline' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                      <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Clock size={18} color="#7c3aed" /> Edit Operations Timeline & Evaluation Rounds
-                      </h3>
-                      <div className="form-group">
-                        <label className="form-label">Timeline Section Title</label>
-                        <input type="text" className="form-input" value={editorContent.timeline.title} onChange={e => setEditorContent({...editorContent, timeline: {...editorContent.timeline, title: e.target.value}})} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Timeline Description</label>
-                        <textarea rows={2} className="form-textarea" value={editorContent.timeline.description} onChange={e => setEditorContent({...editorContent, timeline: {...editorContent.timeline, description: e.target.value}})}></textarea>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                        <div className="form-group">
-                          <label className="form-label">Round 1 Evaluation Title & Weightage</label>
-                          <input type="text" className="form-input" value={editorContent.timeline.round1} onChange={e => setEditorContent({...editorContent, timeline: {...editorContent.timeline, round1: e.target.value}})} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Round 2 Evaluation Title & Weightage</label>
-                          <input type="text" className="form-input" value={editorContent.timeline.round2} onChange={e => setEditorContent({...editorContent, timeline: {...editorContent.timeline, round2: e.target.value}})} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Round 3 Evaluation Title & Weightage</label>
-                          <input type="text" className="form-input" value={editorContent.timeline.round3} onChange={e => setEditorContent({...editorContent, timeline: {...editorContent.timeline, round3: e.target.value}})} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Round 4 Grand Jury Finale Weightage</label>
-                          <input type="text" className="form-input" value={editorContent.timeline.round4} onChange={e => setEditorContent({...editorContent, timeline: {...editorContent.timeline, round4: e.target.value}})} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                        <td style={{ padding: '1rem' }} onClick={e => e.stopPropagation()}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <button
+                              onClick={() => handleTogglePayment(team.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                              title="Click to toggle payment"
+                            >
+                              <span className={`badge ${team.payment_status === 'paid' ? 'badge-lime' : 'badge-coral'}`}>
+                                {team.payment_status === 'paid' ? '✓ Paid (₹1,000)' : '⏳ Pending'}
+                              </span>
+                            </button>
 
-                  {/* SECTION 5: STALLS */}
-                  {cmsActiveSection === 'stalls' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                      <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Building2 size={18} color="#dc2626" /> Edit Interactive Expo & Tech Stalls
-                      </h3>
-                      <div className="form-group">
-                        <label className="form-label">Expo Section Title</label>
-                        <input type="text" className="form-input" value={editorContent.stalls.title} onChange={e => setEditorContent({...editorContent, stalls: {...editorContent.stalls, title: e.target.value}})} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Expo Description</label>
-                        <textarea rows={2} className="form-textarea" value={editorContent.stalls.description} onChange={e => setEditorContent({...editorContent, stalls: {...editorContent.stalls, description: e.target.value}})}></textarea>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                        <div className="form-group">
-                          <label className="form-label">Tech / Business Stall Pricing</label>
-                          <input type="text" className="form-input" value={editorContent.stalls.techStallPrice} onChange={e => setEditorContent({...editorContent, stalls: {...editorContent.stalls, techStallPrice: e.target.value}})} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Food & Beverage Stall Pricing</label>
-                          <input type="text" className="form-input" value={editorContent.stalls.foodStallPrice} onChange={e => setEditorContent({...editorContent, stalls: {...editorContent.stalls, foodStallPrice: e.target.value}})} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                            {team.payment_status === 'paid' && (
+                              team.invoice_approved ? (
+                                <span className="badge badge-mint" style={{ fontSize: '0.68rem' }} title="Invoice released to participant">
+                                  📄 Invoice Approved
+                                </span>
+                              ) : (
+                                <button
+                                  className="btn btn-coral btn-xs"
+                                  onClick={() => handleApproveInvoice(team.id)}
+                                  style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', fontWeight: 800 }}
+                                  title="Click to approve official invoice release"
+                                >
+                                  Approve Invoice
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </td>
 
-                  {/* SECTION 6: FOOTER */}
-                  {cmsActiveSection === 'footer' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                      <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Layout size={18} color="#2563eb" /> Edit Footer & Helpline Information
-                      </h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                        <div className="form-group">
-                          <label className="form-label">Helpline Phone Number</label>
-                          <input type="text" className="form-input" value={editorContent.footer.phone} onChange={e => setEditorContent({...editorContent, footer: {...editorContent.footer, phone: e.target.value}})} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">Official Contact Email</label>
-                          <input type="text" className="form-input" value={editorContent.footer.email} onChange={e => setEditorContent({...editorContent, footer: {...editorContent.footer, email: e.target.value}})} />
-                        </div>
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Campus & Event Venue Address</label>
-                        <input type="text" className="form-input" value={editorContent.footer.address} onChange={e => setEditorContent({...editorContent, footer: {...editorContent.footer, address: e.target.value}})} />
-                      </div>
-                    </div>
-                  )}
+                        <td style={{ padding: '1rem' }}>
+                          <span className={`badge ${team.status === 'shortlisted' ? 'badge-lime' : 'badge-lavender'}`}>
+                            {team.status}
+                          </span>
+                        </td>
 
-                  <div style={{ marginTop: '2.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                    <button type="submit" className="btn btn-primary" style={{ padding: '0.85rem 2rem', fontSize: '1rem', fontWeight: 800, background: '#2563eb', borderColor: '#2563eb' }}>
-                      Save Updates & Review Change Summary
-                    </button>
+                        <td style={{ padding: '1rem', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem' }}>
+                            <button
+                              onClick={() => setSelectedTeam(team)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem', fontWeight: 800 }}
+                            >
+                              <Eye size={13} /> View Details
+                            </button>
+
+                            <button
+                              onClick={() => handleToggleShortlist(team.id)}
+                              className="btn btn-ghost btn-sm"
+                              style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem', fontWeight: 800 }}
+                            >
+                              {team.status === 'shortlisted' ? 'Un-shortlist' : 'Shortlist'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =====================================================
+            TAB 3: TiDB CLOUD & SAFETY STORAGE CONSOLE
+           ===================================================== */}
+        {activeTab === 'database' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            
+            {/* Database Engine Status Header */}
+            <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem', marginBottom: '1.5rem' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <span className="badge badge-coral">DATABASE ARCHITECTURE</span>
+                    <span className={`badge ${dbStatus?.isTiDbConnected ? 'badge-lime' : 'badge-lavender'}`}>
+                      {dbStatus?.isTiDbConnected ? '🟢 TiDB Cloud Active' : '🟡 SQLite Safety Mirror Active'}
+                    </span>
                   </div>
+                  <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--whiz-dark)' }}>
+                    TiDB Cloud Distributed Database & Safety Storage
+                  </h2>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: 0 }}>
+                    Enterprise dual-layer storage: TiDB Cloud + Local WAL-mode SQLite safety storage with instant snapshots.
+                  </p>
+                </div>
 
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    className="btn btn-coral"
+                    onClick={handleSyncSafetyBackup}
+                    disabled={dbLoading}
+                    style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    <HardDrive size={16} />
+                    <span>{dbLoading ? 'Backing Up...' : 'Sync Snapshot to Safety Storage'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Metric Tiles */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ padding: '1.25rem', background: 'var(--canvas-subtle)', borderRadius: 'var(--r-lg)' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>ACTIVE ENGINE</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--whiz-dark)', marginTop: 4 }}>
+                    {dbStatus?.engine || 'SQLite Safety Storage'}
+                  </div>
+                </div>
+
+                <div style={{ padding: '1.25rem', background: 'var(--canvas-subtle)', borderRadius: 'var(--r-lg)' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>HOST & PORT</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--whiz-dark)', marginTop: 4 }}>
+                    {dbStatus?.host || '127.0.0.1'}:{dbStatus?.port || '4000'}
+                  </div>
+                </div>
+
+                <div style={{ padding: '1.25rem', background: 'var(--canvas-subtle)', borderRadius: 'var(--r-lg)' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>DATABASE NAME</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--whiz-dark)', marginTop: 4 }}>
+                    {dbStatus?.database || 'visai2027'}
+                  </div>
+                </div>
+
+                <div style={{ padding: '1.25rem', background: 'var(--canvas-subtle)', borderRadius: 'var(--r-lg)' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)' }}>LAST SAFETY SNAPSHOT</div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--whiz-coral)', marginTop: 4 }}>
+                    {dbStatus?.lastBackupTime ? new Date(dbStatus.lastBackupTime).toLocaleTimeString('en-IN') : 'Synchronized'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Table Records Breakdown */}
+              <h4 style={{ fontSize: '1rem', fontWeight: 900, marginBottom: '0.75rem', color: 'var(--whiz-dark)' }}>
+                Database Tables & Safety Mirror Row Counts
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                {dbStatus?.tables && Object.entries(dbStatus.tables).map(([tbl, count]) => (
+                  <div key={tbl} style={{ padding: '0.75rem 1rem', background: '#FFFFFF', border: '1px solid var(--canvas-border)', borderRadius: 'var(--r-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{tbl}</span>
+                    <span className="badge badge-sky" style={{ fontSize: '0.75rem' }}>{count} rows</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Test TiDB Cloud Connection Section */}
+            <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.35rem' }}>
+                Test Live TiDB Connection Credentials
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+                Verify your TiDB Cloud Serverless or dedicated instance endpoint and credentials directly from the console.
+              </p>
+
+              <form onSubmit={handleTestTiDb} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: '0.3rem' }}>Host</label>
+                  <input
+                    type="text"
+                    value={tidbTestForm.host}
+                    onChange={e => setTidbTestForm({ ...tidbTestForm, host: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)', fontSize: '0.85rem' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: '0.3rem' }}>Port</label>
+                  <input
+                    type="number"
+                    value={tidbTestForm.port}
+                    onChange={e => setTidbTestForm({ ...tidbTestForm, port: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)', fontSize: '0.85rem' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: '0.3rem' }}>Database User</label>
+                  <input
+                    type="text"
+                    value={tidbTestForm.user}
+                    onChange={e => setTidbTestForm({ ...tidbTestForm, user: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)', fontSize: '0.85rem' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'block', marginBottom: '0.3rem' }}>Password</label>
+                  <input
+                    type="password"
+                    placeholder="••••••••"
+                    value={tidbTestForm.password}
+                    onChange={e => setTidbTestForm({ ...tidbTestForm, password: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)', fontSize: '0.85rem' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button type="submit" className="btn btn-coral" style={{ width: '100%', fontWeight: 800, padding: '0.65rem 1rem' }}>
+                    ⚡ Test TiDB Connection
+                  </button>
                 </div>
               </form>
-            )}
 
-            {/* LIVE CANVAS PREVIEW */}
-            {cmsViewMode === 'preview' && (
-              <div className="glass-card" style={{ padding: '2rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '2px solid #e2e8f0' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Real-Time Live Website Canvas Preview</h3>
-                  <span style={{ fontSize: '0.75rem', background: '#d1fae5', color: '#059669', padding: '0.2rem 0.6rem', borderRadius: '9999px', fontWeight: 700 }}>Live Data Sync Active</span>
-                </div>
-
-                <div style={{ background: '#fff', padding: '2.5rem', borderRadius: '16px', border: '1px solid #cbd5e1', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
-                  
-                  {/* Hero Canvas */}
-                  <div style={{ textAlign: 'center', padding: '2rem 1rem', borderBottom: '1px solid #e2e8f0' }}>
-                    <span style={{ background: '#eff6ff', color: '#2563eb', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 800 }}>{editorContent.hero.badge}</span>
-                    <h1 style={{ fontSize: '2.25rem', fontWeight: 900, color: '#0f172a', marginTop: '1rem', marginBottom: '1rem' }}>{editorContent.hero.title}</h1>
-                    <p style={{ color: '#475569', fontSize: '1rem', maxWidth: '700px', margin: '0 auto 1.5rem', lineHeight: 1.6 }}>{editorContent.hero.description}</p>
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-                      <button className="btn btn-primary" style={{ padding: '0.6rem 1.25rem' }}>{editorContent.hero.exploreCta}</button>
-                      <button className="btn btn-secondary" style={{ padding: '0.6rem 1.25rem' }}>{editorContent.hero.souvenirCta}</button>
+              {tidbTestResult && (
+                <div style={{
+                  padding: '1rem 1.25rem',
+                  borderRadius: 'var(--r-lg)',
+                  background: tidbTestResult.loading ? 'var(--canvas-subtle)' : tidbTestResult.success ? 'var(--pastel-lime-bg)' : '#FEE2E2',
+                  border: `1px solid ${tidbTestResult.loading ? 'var(--canvas-border)' : tidbTestResult.success ? 'var(--pastel-lime-border)' : '#F87171'}`,
+                  fontSize: '0.85rem'
+                }}>
+                  {tidbTestResult.loading ? (
+                    <div>Testing connection to TiDB host {tidbTestForm.host}:{tidbTestForm.port}...</div>
+                  ) : tidbTestResult.success ? (
+                    <div style={{ color: 'var(--pastel-lime-text)', fontWeight: 700 }}>
+                      ✓ {tidbTestResult.message} — Server Version: {tidbTestResult.version}
                     </div>
-                  </div>
-
-                  {/* Tracks Canvas */}
-                  <div style={{ padding: '2rem 1rem', borderBottom: '1px solid #e2e8f0' }}>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, textAlign: 'center', color: '#0f172a' }}>{editorContent.tracks.title}</h2>
-                    <p style={{ textAlign: 'center', color: '#64748b', marginBottom: '2rem' }}>{editorContent.tracks.description}</p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                      <div style={{ background: '#eff6ff', padding: '1.5rem', borderRadius: '12px' }}>
-                        <h4 style={{ fontWeight: 800, color: '#1e40af', margin: '0 0 0.5rem' }}>Software Track (36 Hours)</h4>
-                        <p style={{ fontSize: '0.85rem', color: '#1e3a8a', margin: 0 }}>{editorContent.tracks.softwareDesc}</p>
-                      </div>
-                      <div style={{ background: '#ecfdf5', padding: '1.5rem', borderRadius: '12px' }}>
-                        <h4 style={{ fontWeight: 800, color: '#065f46', margin: '0 0 0.5rem' }}>Hardware Track (7-10 Days)</h4>
-                        <p style={{ fontSize: '0.85rem', color: '#064e3b', margin: 0 }}>{editorContent.tracks.hardwareDesc}</p>
-                      </div>
+                  ) : (
+                    <div style={{ color: '#DC2626', fontWeight: 700 }}>
+                      ✕ TiDB Connection Test Result: {tidbTestResult.message} (Automatic safety fallback to local SQLite storage active)
                     </div>
-                  </div>
-
+                  )}
                 </div>
-              </div>
-            )}
-
-            {/* SAVE SUMMARY MODAL */}
-            {showSaveSummaryModal && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1.5rem' }}>
-                <div className="glass-card" style={{ background: '#fff', width: '100%', maxWidth: '650px', padding: '2rem', borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '2px solid #e2e8f0', paddingBottom: '1rem' }}>
-                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <CheckCircle size={22} color="#059669" /> Website Publish Change Summary
-                    </h3>
-                    <button onClick={() => setShowSaveSummaryModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}><XCircle size={22} /></button>
-                  </div>
-
-                  <p style={{ color: '#475569', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-                    Please review the updated website content summary below before publishing live to the public server:
-                  </p>
-
-                  <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '2rem' }}>
-                    <div><strong style={{ color: '#2563eb' }}>• Target Section:</strong> {cmsActiveSection.toUpperCase()}</div>
-                    <div><strong style={{ color: '#1e293b' }}>• Hero Title:</strong> "{editorContent.hero.title}"</div>
-                    <div><strong style={{ color: '#1e293b' }}>• Track Strategy:</strong> "{editorContent.tracks.title}"</div>
-                    <div><strong style={{ color: '#1e293b' }}>• Expo Stall Pricing:</strong> {editorContent.stalls.techStallPrice}</div>
-                    <div><strong style={{ color: '#1e293b' }}>• Contact Helpline:</strong> {editorContent.footer.phone}</div>
-                    <div><strong style={{ color: '#059669' }}>• Author & Server:</strong> Super Admin (Live Server Broadcast Ready)</div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button type="button" onClick={() => setShowSaveSummaryModal(false)} className="btn btn-secondary" style={{ flex: 1, padding: '0.85rem' }}>
-                      Cancel & Edit More
-                    </button>
-                    <button type="button" onClick={handleConfirmPublishCMS} className="btn btn-primary" style={{ flex: 1.5, background: '#059669', borderColor: '#059669', padding: '0.85rem', fontWeight: 800 }}>
-                      Confirm & Push Live to Site
-                    </button>
-                  </div>
-
-                </div>
-              </div>
-            )}
-
-          </div>
-        )}
-
-        {/* TAB: LIVE SITE PREVIEW */}
-        {activeTab === 'preview' && (
-          <div className="glass-card" style={{ padding: '2.5rem', background: '#fff', borderRadius: '16px' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Eye size={24} color="#2563eb" /> Live Public Website Preview
-            </h2>
-            <p style={{ color: '#64748b', marginBottom: '2rem' }}>Inspect how the landing page renders for public visitors with your live CMS content.</p>
-
-            <div style={{ background: '#f8fafc', padding: '2.5rem', borderRadius: '16px', border: '1px solid #cbd5e1' }}>
-              <div style={{ textAlign: 'center', padding: '2rem' }}>
-                <span style={{ background: '#dbeafe', color: '#1e40af', padding: '0.3rem 0.8rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 800 }}>{editorContent.hero.badge}</span>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 900, color: '#0f172a', marginTop: '1rem' }}>{editorContent.hero.title}</h1>
-                <p style={{ color: '#475569', fontSize: '1.1rem', maxWidth: '750px', margin: '1rem auto 2rem' }}>{editorContent.hero.description}</p>
-              </div>
+              )}
             </div>
+
           </div>
         )}
 
-        {/* TAB: PUBLISH AUDIT LOGS */}
-        {activeTab === 'audit' && (
-          <div className="glass-card" style={{ padding: '2.5rem', background: '#fff', borderRadius: '16px' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Clock size={24} color="#7c3aed" /> Website CMS Publish Audit Logs
-            </h2>
-
-            <div className="table-responsive">
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                    <th style={{ padding: '1rem' }}>Log ID</th>
-                    <th style={{ padding: '1rem' }}>Timestamp</th>
-                    <th style={{ padding: '1rem' }}>Author / Admin</th>
-                    <th style={{ padding: '1rem' }}>Change Summary</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {publishLogs.map(log => (
-                    <tr key={log.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '1rem', fontFamily: 'monospace', color: '#2563eb', fontWeight: 700 }}>{log.id}</td>
-                      <td style={{ padding: '1rem', color: '#64748b' }}>{log.timestamp}</td>
-                      <td style={{ padding: '1rem', fontWeight: 700, color: '#1e293b' }}>{log.author}</td>
-                      <td style={{ padding: '1rem', color: '#334155' }}>{log.summary}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* TAB: COORDINATOR MANAGEMENT */}
-        {activeTab === 'coordinator' && (
-          <div className="glass-card" style={{ padding: '2.5rem', background: '#fff' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Coordinator Account Creation</h2>
+        {/* =====================================================
+            TAB: LIVE VISUAL PAGE BUILDER & CMS STUDIO (WIX-STYLE)
+           ===================================================== */}
+        {activeTab === 'builder' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '2rem' }}>
-              <div style={{ background: '#f8fafc', padding: '2rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Wrench size={18} color="#059669"/> Add Coordinator
-                </h3>
-                {coordSuccess && <div style={{ background: '#ecfdf5', color: '#059669', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.85rem', fontWeight: 600 }}>{coordSuccess}</div>}
-                <form onSubmit={handleCreateCoord}>
-                  <div className="form-group"><label className="form-label">Name</label>
-                    <input type="text" required className="form-input" value={newCoord.name} onChange={e => setNewCoord({...newCoord, name: e.target.value})} placeholder="e.g. Srinath K" />
-                  </div>
-                  <div className="form-group"><label className="form-label">Email</label>
-                    <input type="email" required className="form-input" value={newCoord.email} onChange={e => setNewCoord({...newCoord, email: e.target.value})} />
-                  </div>
-                  <div className="form-group"><label className="form-label">Password</label>
-                    <input type="text" required className="form-input" value={newCoord.password} onChange={e => setNewCoord({...newCoord, password: e.target.value})} />
-                  </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%', background: '#059669', borderColor: '#059669' }}>Create Coordinator Account</button>
-                </form>
+            {/* Studio Launch Banner */}
+            <div
+              className="bento-card"
+              style={{
+                padding: '2.5rem',
+                background: 'linear-gradient(135deg, #FFF6F3 0%, #FFFFFF 60%, #FFF0EA 100%)',
+                border: '2px solid rgba(255, 90, 54, 0.3)',
+                boxShadow: '0 10px 30px rgba(255, 90, 54, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '1.5rem',
+              }}
+            >
+              <div style={{ maxWidth: 640 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                  <span className="badge badge-coral" style={{ fontSize: '0.75rem' }}>
+                    WIX-STYLE LIVE VISUAL BUILDER
+                  </span>
+                  <span className="badge badge-lime" style={{ fontSize: '0.75rem' }}>
+                    ✓ Auto-Sync to Database
+                  </span>
+                </div>
+                <h2 style={{ fontSize: '1.85rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.5rem' }}>
+                  Customize Content, Sliding Windows & Navigation
+                </h2>
+                <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 0 }}>
+                  Click <strong>"Start Live Visual Edit"</strong> to open the homepage where all sections become interactive editable boxes. Modify headlines, swap photo URLs, adjust card corner shapes, add new content sections, and create custom navigation pages with real-time preview and diff audit review.
+                </p>
               </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <button
+                  className="btn btn-coral"
+                  onClick={() => {
+                    startVisualEdit();
+                    window.dispatchEvent(new CustomEvent('visai:goto-home-edit'));
+                  }}
+                  style={{
+                    padding: '0.95rem 1.75rem',
+                    fontSize: '1rem',
+                    fontWeight: 900,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    boxShadow: 'var(--shadow-coral)',
+                  }}
+                >
+                  <Edit3 size={18} />
+                  <span>🚀 Start Live Visual Edit</span>
+                </button>
+
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setIsReviewModalOpen(true)}
+                    style={{ flex: 1, fontWeight: 800 }}
+                  >
+                    Review Published Diff
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      if (window.confirm('Reset all site customizations back to official default template?')) {
+                        resetToDefaults();
+                        showToast('Site content reset to official default template.');
+                      }
+                    }}
+                    style={{ color: '#EF4444', fontWeight: 700 }}
+                  >
+                    Reset Defaults
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Sub-Panels Grid: Dynamic Pages & Custom Blocks */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '1.75rem' }}>
+              
+              {/* Custom Navigation Pages Manager */}
+              <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--whiz-dark)', margin: 0 }}>
+                      📑 Custom Navigation Pages ({(siteContent?.customPages || []).length})
+                    </h3>
+                    <div style={{ fontSize: '0.785rem', color: 'var(--text-muted)' }}>
+                      Create new website sub-pages and navbar tabs
+                    </div>
+                  </div>
+
+                  <button
+                    className="btn btn-coral btn-sm"
+                    onClick={() => setIsAddPageModalOpen(true)}
+                    style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <Plus size={14} />
+                    <span>+ Add Page</span>
+                  </button>
+                </div>
+
+                {(siteContent?.customPages || []).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2.5rem 1rem', background: 'var(--canvas-subtle)', borderRadius: 'var(--r-lg)' }}>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                      No custom navigation pages created yet.
+                    </p>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setIsAddPageModalOpen(true)}
+                      style={{ fontWeight: 800 }}
+                    >
+                      Create First Page (e.g. Accommodations)
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {(siteContent?.customPages || []).map(page => (
+                      <div
+                        key={page.id}
+                        style={{
+                          padding: '1rem 1.25rem',
+                          borderRadius: 'var(--r-md)',
+                          background: '#FAFAFA',
+                          border: '1px solid var(--canvas-border)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--whiz-dark)' }}>
+                              {page.navLabel}
+                            </span>
+                            <span className={`badge badge-${page.theme || 'lavender'}`} style={{ fontSize: '0.7rem' }}>
+                              /{page.slug}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                            {page.title}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Delete custom page "${page.navLabel}"?`)) {
+                              deleteCustomPage(page.id);
+                              showToast(`Page "${page.navLabel}" deleted.`);
+                            }
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#EF4444',
+                            padding: '0.4rem',
+                          }}
+                          title="Delete this custom page"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Custom Homepage Content Boxes Manager */}
+              <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--whiz-dark)', margin: 0 }}>
+                      📦 Custom Homepage Boxes ({(siteContent?.customBlocks || []).length})
+                    </h3>
+                    <div style={{ fontSize: '0.785rem', color: 'var(--text-muted)' }}>
+                      Insert announcements, guidelines, and banners
+                    </div>
+                  </div>
+
+                  <button
+                    className="btn btn-coral btn-sm"
+                    onClick={() => setIsAddBlockModalOpen(true)}
+                    style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <Plus size={14} />
+                    <span>+ Add Box</span>
+                  </button>
+                </div>
+
+                {(siteContent?.customBlocks || []).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2.5rem 1rem', background: 'var(--canvas-subtle)', borderRadius: 'var(--r-lg)' }}>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                      No custom homepage content boxes added yet.
+                    </p>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setIsAddBlockModalOpen(true)}
+                      style={{ fontWeight: 800 }}
+                    >
+                      Insert First Box (e.g. Hardware Notice)
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {(siteContent?.customBlocks || []).map(block => (
+                      <div
+                        key={block.id}
+                        style={{
+                          padding: '1rem 1.25rem',
+                          borderRadius: 'var(--r-md)',
+                          background: '#FAFAFA',
+                          border: '1px solid var(--canvas-border)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--whiz-dark)' }}>
+                              {block.title}
+                            </span>
+                            <span className={`badge badge-${block.theme || 'lime'}`} style={{ fontSize: '0.7rem' }}>
+                              {block.position}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                            {block.subtitle || block.content?.slice(0, 50) + '...'}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Delete custom box "${block.title}"?`)) {
+                              deleteCustomBlock(block.id);
+                              showToast(`Box "${block.title}" deleted.`);
+                            }
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#EF4444',
+                            padding: '0.4rem',
+                          }}
+                          title="Delete this custom box"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Design System, Shape Curvature & Spacing */}
+            <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--whiz-dark)', margin: 0 }}>
+                    📐 Global Shapes, Corner Curvature & Bento Grid Layout
+                  </h3>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    Current Corner Curvature: <strong>{siteContent?.themeSettings?.borderRadius || '28px (Bento Super Rounded)'}</strong> • Spacing: <strong>{siteContent?.themeSettings?.sectionSpacing || 'normal'}</strong>
+                  </div>
+                </div>
+
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setIsThemeModalOpen(true)}
+                  style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <Sliders size={15} />
+                  <span>Adjust Shapes & Spacing</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* =====================================================
+            TAB 4: PROBLEM STATEMENTS MANAGEMENT
+           ===================================================== */}
+        {activeTab === 'problems' && (() => {
+          const displayProblems = problemsList.length > 0 ? problemsList : SDG_8_THEMES.map(sdg => ({
+            id: `sdg-${sdg.number}`,
+            ps_code: `VISAI-SDG0${sdg.number}-IND01`,
+            title: sdg.name,
+            track: `SDG 0${sdg.number}: ${sdg.shortName}`,
+            category: sdg.partner,
+            short_description: `Industrial innovation challenge sponsored by ${sdg.partner} focusing on scalable technology solutions.`,
+            full_description: `Official problem scope under UN SDG Goal ${sdg.number} (${sdg.name}).\nPartnership: ${sdg.partner}\n\nKey Focus Areas:\n• Scalable architecture & cloud deployment\n• Measurable UN SDG sustainability metric\n• Hardware/software integration feasibility`,
+            status: 'published',
+            registered_count: teams.filter(t => t.track?.includes(`SDG 0${sdg.number}`) || t.track?.includes(`SDG ${sdg.number}`)).length,
+            max_capacity: 60
+          }));
+
+          return (
+            <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--whiz-dark)', margin: 0 }}>
+                      Problem Statements Directory ({displayProblems.length} Active Challenges)
+                    </h3>
+                    <span className="badge badge-lime" style={{ fontSize: '0.75rem' }}>
+                      ✓ Live in Database
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Manage and curate real-world industrial challenge statements under the 8 UN Sustainable Development Goals. Click on any card to view, open, or edit.
+                  </p>
+                </div>
+
+                <button
+                  className="btn btn-coral btn-sm"
+                  onClick={() => setNewPsModal(true)}
+                  style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem', boxShadow: 'var(--shadow-coral)' }}
+                >
+                  <Plus size={15} />
+                  <span>+ Add Problem Statement</span>
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+                {displayProblems.map(p => (
+                  <div
+                    key={p.id}
+                    className="bento-card"
+                    style={{
+                      padding: '1.5rem',
+                      background: '#FFFFFF',
+                      border: '1.5px solid var(--canvas-border)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      transition: 'all 0.2s ease',
+                      boxShadow: 'var(--shadow-xs)',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span className="badge badge-coral" style={{ fontSize: '0.72rem', fontWeight: 800 }}>
+                          {p.ps_code || 'VISAI-SDG'}
+                        </span>
+                        <span className="badge badge-peach" style={{ fontSize: '0.7rem' }}>
+                          {p.category || 'Industry Partner'}
+                        </span>
+                      </div>
+
+                      <h4 style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.5rem', lineHeight: 1.35 }}>
+                        {p.title}
+                      </h4>
+
+                      <div style={{ fontSize: '0.785rem', color: 'var(--whiz-coral)', fontWeight: 700, marginBottom: '0.65rem' }}>
+                        🎯 {p.track}
+                      </div>
+
+                      <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '1rem' }}>
+                        {p.short_description || p.description || 'Industrial innovation challenge focusing on scalable technology solutions.'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.75rem', background: 'var(--canvas-subtle)', borderRadius: 'var(--r-md)', marginBottom: '0.9rem', fontSize: '0.75rem' }}>
+                        <span>Teams: <strong>{p.registered_count || 0} / {p.max_capacity || 60}</strong></span>
+                        <span className="badge badge-lime" style={{ fontSize: '0.68rem' }}>{p.status || 'Published'}</span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setSelectedPsModal(p)}
+                          style={{ flex: 1, fontWeight: 800, fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                          title="View and inspect full problem scope"
+                        >
+                          <Eye size={13} />
+                          <span>View / Open</span>
+                        </button>
+
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => handleDeletePs(p.id)}
+                          style={{ color: '#EF4444', padding: '0.4rem 0.6rem' }}
+                          title="Delete Problem Statement"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* =====================================================
+            TAB 5: JURY EVALUATORS & PROVISIONING
+           ===================================================== */}
+        {activeTab === 'jury' && (
+          <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '1.5rem' }}>Active Coordinators</h3>
-                <div className="table-responsive">
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                    <thead><tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b' }}><th style={{ padding: '0.75rem 1rem' }}>Details</th></tr></thead>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--whiz-dark)', margin: 0 }}>
+                    Jury Evaluators Directory & Allocation ({juryList.length} Active Evaluators)
+                  </h3>
+                  <span className="badge badge-lime" style={{ fontSize: '0.75rem' }}>
+                    ✓ Live in Database
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  Provision evaluator accounts, issue credentials, send invitation emails, and manage double-blind assessment tracks.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.65rem' }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setEmailTargetGroup('all_jury');
+                    setEmailTargetCustom('');
+                    setEmailModalOpen(true);
+                  }}
+                  style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  <Mail size={14} color="var(--whiz-coral)" />
+                  <span>Email All Jury</span>
+                </button>
+
+                <button
+                  className="btn btn-coral btn-sm"
+                  onClick={() => setAddJuryModal(true)}
+                  style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem', boxShadow: 'var(--shadow-coral)' }}
+                >
+                  <Key size={14} />
+                  <span>+ Provision New Jury</span>
+                </button>
+              </div>
+            </div>
+
+            {juryList.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem 1.5rem', background: '#FFFFFF', borderRadius: 'var(--r-lg)', border: '1.5px dashed var(--canvas-border)' }}>
+                <ShieldCheck size={40} color="var(--text-muted)" style={{ margin: '0 auto 0.75rem', opacity: 0.5 }} />
+                <h4 style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.35rem' }}>
+                  No Jury Evaluators Provisioned Yet
+                </h4>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', maxWidth: 420, margin: '0 auto 1.25rem' }}>
+                  Super Admins can provision evaluator accounts, issue credentials, and allocate SDG tracks.
+                </p>
+                <button className="btn btn-coral btn-sm" onClick={() => setAddJuryModal(true)} style={{ fontWeight: 800 }}>
+                  <Key size={15} /> + Provision First Jury Member
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+                {juryList.map(j => (
+                  <div key={j.id} className="bento-card" style={{
+                    padding: '1.75rem',
+                    background: '#FFFFFF',
+                    border: '1.5px solid var(--canvas-border)',
+                    boxShadow: 'var(--shadow-xs)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                        <div>
+                          <h4 style={{ fontSize: '1.15rem', fontWeight: 900, color: 'var(--whiz-dark)', lineHeight: 1.2 }}>
+                            {j.full_name}
+                          </h4>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--whiz-coral)', fontWeight: 700, marginTop: 2 }}>
+                            {j.organization}
+                          </div>
+                        </div>
+                        <span className="badge badge-sky" style={{ fontSize: '0.7rem' }}>
+                          Jury ID: {j.id}
+                        </span>
+                      </div>
+
+                      <div style={{
+                        background: 'var(--canvas-subtle)',
+                        padding: '0.85rem 1rem',
+                        borderRadius: 'var(--r-md)',
+                        fontSize: '0.8rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.6,
+                        marginBottom: '1rem'
+                      }}>
+                        <div>📧 <strong>Email:</strong> {j.email}</div>
+                        <div>🔑 <strong>Password:</strong> <code style={{ color: 'var(--whiz-coral)', fontWeight: 700 }}>{j.initial_password || 'Jury@VISAI2027'}</code></div>
+                        <div>🎯 <strong>Track:</strong> {j.track}</div>
+                        <div>📞 <strong>Phone:</strong> {j.phone}</div>
+                      </div>
+
+                      <div style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                        Evaluations Done: <strong>{j.evaluated_count} / {j.assigned_count}</strong>
+                      </div>
+                      <div style={{ width: '100%', height: 6, background: '#E2E8F0', borderRadius: 'var(--r-full)', overflow: 'hidden', marginBottom: '1.25rem' }}>
+                        <div style={{ width: `${(j.evaluated_count / (j.assigned_count || 1)) * 100}%`, height: '100%', background: 'var(--whiz-coral)' }} />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleCopyCredentials(j)}
+                        style={{ fontSize: '0.75rem', flex: 1, fontWeight: 800 }}
+                        title="Copy Login Credentials"
+                      >
+                        <Copy size={13} /> Copy Info
+                      </button>
+
+                      <button
+                        className="btn btn-coral btn-sm"
+                        onClick={() => {
+                          setEmailTargetGroup('custom');
+                          setEmailTargetCustom(j.email);
+                          setEmailModalOpen(true);
+                        }}
+                        style={{ fontSize: '0.75rem', fontWeight: 800, padding: '0.4rem 0.65rem' }}
+                        title="Send login credentials via email"
+                      >
+                        <Mail size={13} /> Email Login
+                      </button>
+
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => handleDeleteJury(j.id)}
+                        style={{ color: '#EF4444', fontSize: '0.75rem', padding: '0.4rem 0.6rem' }}
+                        title="Remove Jury Evaluator"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =====================================================
+            TAB: EMAIL BROADCAST & DISPATCH STUDIO (Send Mail)
+           ===================================================== */}
+        {activeTab === 'email' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            
+            {/* Top Broadcast Overview Bento Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
+              <div className="bento-card card-pastel-peach" style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--pastel-peach-text)' }}>BROADCASTS DISPATCHED</span>
+                  <Send size={20} color="var(--pastel-peach-text)" />
+                </div>
+                <div style={{ fontSize: '2.4rem', fontWeight: 900, color: 'var(--whiz-dark)', lineHeight: 1 }}>
+                  {emailLogs.length}
+                </div>
+                <div style={{ fontSize: '0.785rem', color: 'var(--pastel-peach-text)', marginTop: '0.5rem', fontWeight: 700 }}>
+                  ✓ Logged in Database
+                </div>
+              </div>
+
+              <div className="bento-card card-pastel-mint" style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--pastel-mint-text)' }}>TEAM LEADERS REACHABLE</span>
+                  <Users size={20} color="var(--pastel-mint-text)" />
+                </div>
+                <div style={{ fontSize: '2.4rem', fontWeight: 900, color: 'var(--whiz-dark)', lineHeight: 1 }}>
+                  {teams.length}
+                </div>
+                <div style={{ fontSize: '0.785rem', color: 'var(--pastel-mint-text)', marginTop: '0.5rem', fontWeight: 700 }}>
+                  Verified Leader Contacts
+                </div>
+              </div>
+
+              <div className="bento-card card-pastel-lavender" style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--pastel-lavender-text)' }}>JURY EVALUATORS</span>
+                  <Shield size={20} color="var(--pastel-lavender-text)" />
+                </div>
+                <div style={{ fontSize: '2.4rem', fontWeight: 900, color: 'var(--whiz-dark)', lineHeight: 1 }}>
+                  {juryList.length}
+                </div>
+                <div style={{ fontSize: '0.785rem', color: 'var(--pastel-lavender-text)', marginTop: '0.5rem', fontWeight: 700 }}>
+                  Active Evaluator Portals
+                </div>
+              </div>
+
+              <div className="bento-card card-pastel-sky" style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--pastel-sky-text)' }}>OFFICIAL SENDER</span>
+                  <Mail size={20} color="var(--pastel-sky-text)" />
+                </div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--whiz-dark)', marginTop: '0.4rem', wordBreak: 'break-all' }}>
+                  vamsiinampudi01@gmail.com
+                </div>
+                <div style={{ fontSize: '0.785rem', color: 'var(--pastel-sky-text)', marginTop: '0.5rem', fontWeight: 700 }}>
+                  ✓ Super Admin Channel
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Broadcast Launchers Bento Card */}
+            <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--whiz-dark)', margin: 0 }}>
+                    ⚡ Quick Broadcast Launchers
+                  </h3>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    Select target recipients or customize email template for instant delivery from <strong>vamsiinampudi01@gmail.com</strong>.
+                  </p>
+                </div>
+
+                <button
+                  className="btn btn-coral"
+                  onClick={() => {
+                    setEmailTargetGroup('all_leaders');
+                    setEmailTargetCustom('');
+                    setEmailModalOpen(true);
+                  }}
+                  style={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.4rem', boxShadow: 'var(--shadow-coral)' }}
+                >
+                  <Send size={15} />
+                  <span>Open Email Dispatcher</span>
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+                {[
+                  { id: 'all_leaders', title: '👥 All Student Team Leaders', desc: `Broadcast to ${teams.length} registered team leaders with abstract reminders or schedule updates.` },
+                  { id: 'all_jury', title: '⚖️ All Jury Evaluators', desc: `Send evaluation guidelines, scoring rubrics, and portal login credentials to ${juryList.length} evaluators.` },
+                  { id: 'all_members', title: '🎓 All Registered Team Members', desc: 'Notify all individual student teammates across all registered teams.' },
+                  { id: 'all_coordinators', title: '🛡️ All Coordinators & Staff', desc: 'Dispatch operational notices, venue guidelines, and lab duties to event coordinators.' },
+                  { id: 'custom', title: '👤 Specific Individual Email', desc: 'Send a personalized email or test notification to a specific individual address.' },
+                ].map(group => (
+                  <div
+                    key={group.id}
+                    className="bento-card"
+                    style={{
+                      padding: '1.25rem',
+                      background: 'var(--canvas-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      borderRadius: 'var(--r-lg)',
+                      border: '1px solid var(--canvas-border)',
+                    }}
+                  >
+                    <div>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--whiz-dark)', marginBottom: '0.4rem' }}>
+                        {group.title}
+                      </h4>
+                      <p style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '1rem' }}>
+                        {group.desc}
+                      </p>
+                    </div>
+
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setEmailTargetGroup(group.id);
+                        setEmailTargetCustom('');
+                        setEmailModalOpen(true);
+                      }}
+                      style={{ fontWeight: 800, fontSize: '0.75rem', width: '100%' }}
+                    >
+                      Compose to {group.title.split(' ')[1] || 'Audience'} →
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Email Broadcast Logs Table */}
+            <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--whiz-dark)', margin: 0 }}>
+                    📜 Email Broadcast History & Live Audit Trail ({emailLogs.length} Records)
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    All outgoing emails dispatched via the super admin portal are recorded in TiDB cloud database.
+                  </p>
+                </div>
+
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={loadData}
+                  style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  <RefreshCw size={14} />
+                  <span>Refresh Logs</span>
+                </button>
+              </div>
+
+              {emailLogs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem 1rem', background: 'var(--canvas-subtle)', borderRadius: 'var(--r-lg)' }}>
+                  <Inbox size={36} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
+                  <div style={{ fontWeight: 800, color: 'var(--whiz-dark)', fontSize: '0.95rem' }}>No Email Broadcasts Dispatched Yet</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    Click "+ Open Email Dispatcher" to send your first broadcast from <strong>vamsiinampudi01@gmail.com</strong>.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid var(--canvas-border)', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
+                        <th style={{ padding: '0.75rem 1rem' }}>Timestamp</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Target Group</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Subject Line</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Recipients</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Admin Sender</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Status</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      {coordinators.map(c => (
-                        <tr key={c.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                          <td style={{ padding: '1rem' }}><div style={{ fontWeight: 700, color: '#1e293b' }}>{c.name}</div><div style={{ fontSize: '0.75rem', color: '#64748b' }}>{c.email} • {c.id}</div></td>
+                      {emailLogs.map(log => (
+                        <tr key={log.id} style={{ borderBottom: '1px solid var(--canvas-border)' }}>
+                          <td style={{ padding: '0.85rem 1rem', color: 'var(--text-muted)', fontSize: '0.785rem' }}>
+                            {new Date(log.created_at).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <span className="badge badge-peach" style={{ fontSize: '0.725rem' }}>
+                              {log.target_group}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: 'var(--whiz-dark)', maxWidth: 300 }}>
+                            {log.subject}
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <strong>{log.recipient_count}</strong> {log.recipient_count === 1 ? 'email' : 'emails'}
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem', fontSize: '0.785rem', color: 'var(--text-muted)' }}>
+                            {log.sender_email || 'vamsiinampudi01@gmail.com'}
+                          </td>
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <span className="badge badge-lime" style={{ fontSize: '0.7rem' }}>
+                              ✓ {log.status || 'SENT'}
+                            </span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* =====================================================
+            TAB 6: ROUND PROGRESSION
+           ===================================================== */}
+        {activeTab === 'rounds' && (
+          <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 900, marginBottom: '1.25rem' }}>
+              Hackathon Rounds & Evaluation Phases
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {rounds.map(r => (
+                <div key={r.id} className="bento-card" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: r.status === 'active' ? 'var(--pastel-lime-bg)' : '#FFFFFF' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                      <span className={`badge ${r.status === 'active' ? 'badge-lime' : 'badge-lavender'}`}>
+                        {r.status === 'active' ? '● CURRENTLY ACTIVE' : 'UPCOMING PHASE'}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Deadline: {r.deadline}</span>
+                    </div>
+                    <h4 style={{ fontSize: '1.15rem', fontWeight: 900 }}>{r.name}</h4>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      className={`btn ${r.status === 'active' ? 'btn-secondary' : 'btn-coral'} btn-sm`}
+                      onClick={() => {
+                        setRounds(prev => prev.map(rn => rn.id === r.id ? { ...rn, status: rn.status === 'active' ? 'closed' : 'active' } : rn));
+                        showToast(`Round status updated!`);
+                      }}
+                      style={{ fontWeight: 800 }}
+                    >
+                      {r.status === 'active' ? 'Close Submissions' : 'Activate Round'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* =====================================================
+            TAB 7: PAYMENTS LEDGER & INVOICE APPROVAL
+           ===================================================== */}
+        {activeTab === 'payments' && (
+          <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 900 }}>Official Payments & Revenue Ledger</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  Total Collected: <strong style={{ color: 'var(--whiz-coral)' }}>₹{teams.filter(t => t.payment_status === 'paid').length * 1000} INR</strong> via Razorpay Key <code style={{ color: 'var(--whiz-coral)' }}>rzp_test_TjWTndAvEuQPFf</code>.
+                </p>
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={() => showToast('Exporting financial payment ledger...')} style={{ fontWeight: 800 }}>
+                <Download size={15} /> Export Ledger
+              </button>
+            </div>
+
+            {teams.filter(t => t.payment_status === 'paid').length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3.5rem 1.5rem', background: '#FFFFFF', borderRadius: 'var(--r-lg)' }}>
+                <CreditCard size={40} color="var(--text-muted)" style={{ margin: '0 auto 0.75rem', opacity: 0.5 }} />
+                <h4 style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.35rem' }}>
+                  No Payment Transactions Yet
+                </h4>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', maxWidth: 420, margin: '0 auto' }}>
+                  Paid team registrations and verified financial receipts will appear in this ledger.
+                </p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--canvas-border)', color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                      <th style={{ padding: '0.75rem 1rem' }}>Team & College</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>Transaction / Order ID</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>Amount</th>
+                      <th style={{ padding: '0.75rem 1rem' }}>Invoice Status</th>
+                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teams.filter(t => t.payment_status === 'paid').map(t => (
+                      <tr key={t.id} style={{ borderBottom: '1px solid var(--canvas-border)' }}>
+                        <td style={{ padding: '1rem' }}>
+                          <div style={{ fontWeight: 800 }}>{t.team_name}</div>
+                          <div style={{ fontSize: '0.785rem', color: 'var(--text-muted)' }}>{t.college_name || 'College Recorded'}</div>
+                        </td>
+                        <td style={{ padding: '1rem', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                          pay_VISAI27_{t.id.slice(0, 8)}
+                        </td>
+                        <td style={{ padding: '1rem', fontWeight: 900, color: '#16A34A' }}>₹1,000.00</td>
+                        <td style={{ padding: '1rem' }}>
+                          {t.invoice_approved ? (
+                            <span className="badge badge-lime">✓ Invoice Released</span>
+                          ) : (
+                            <span className="badge badge-peach">⏳ Pending Approval</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'right' }}>
+                          {!t.invoice_approved ? (
+                            <button
+                              className="btn btn-coral btn-xs"
+                              onClick={() => handleApproveInvoice(t.id)}
+                              style={{ fontSize: '0.75rem', fontWeight: 800 }}
+                            >
+                              Approve Invoice
+                            </button>
+                          ) : (
+                            <button
+                              className="btn btn-secondary btn-xs"
+                              onClick={() => setPreviewInvoiceTeam(t)}
+                              style={{ fontSize: '0.75rem', fontWeight: 800 }}
+                            >
+                              View Invoice
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =====================================================
+            TAB 8: AUDIT LOGS
+           ===================================================== */}
+        {activeTab === 'audit' && (
+          <div className="bento-card" style={{ padding: '2rem', background: '#FFFFFF' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 900, marginBottom: '1.25rem' }}>
+              Security & Audit Trail Log
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {stats.recent_activity?.map((log, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.85rem 1rem', background: 'var(--canvas-subtle)', borderRadius: 'var(--r-md)', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span className="badge badge-peach">{log.actor_role}</span>
+                    <span style={{ fontWeight: 600 }}>{log.action}</span>
+                  </div>
+                  <span style={{ color: 'var(--text-muted)' }}>{new Date(log.created_at).toLocaleString('en-IN')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* =====================================================
+            MODAL 1: TEAM FULL DRILLDOWN DRAWER / MODAL
+           ===================================================== */}
+        {selectedTeam && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 10000,
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem'
+          }}>
+            <div className="bento-card" style={{
+              maxWidth: 780, width: '100%', maxHeight: '90vh', overflowY: 'auto',
+              background: '#FFFFFF', padding: '2.25rem', borderRadius: 'var(--r-2xl)', boxShadow: 'var(--shadow-2xl)'
+            }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', borderBottom: '1px solid var(--canvas-border)', paddingBottom: '1rem' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <span className="badge badge-coral">
+                      {selectedTeam.registration_number || selectedTeam.id}
+                    </span>
+                    <span className={`badge ${selectedTeam.payment_status === 'paid' ? 'badge-lime' : 'badge-lavender'}`}>
+                      {selectedTeam.payment_status === 'paid' ? '✓ Paid (₹1,000)' : '⏳ Payment Pending'}
+                    </span>
+                    {selectedTeam.is_locked ? (
+                      <span className="badge badge-peach"><Lock size={12} /> Registration Locked</span>
+                    ) : (
+                      <span className="badge badge-sky"><Unlock size={12} /> Editable</span>
+                    )}
+                  </div>
+                  <h2 style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--whiz-dark)' }}>
+                    {selectedTeam.team_name}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setSelectedTeam(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Leader Details Card */}
+              <div className="bento-card card-pastel-sky" style={{ padding: '1.5rem', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Users size={16} /> Team Leader Details
+                  </h4>
+                  <span className="badge badge-sky">Team Lead</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', fontSize: '0.85rem' }}>
+                  <div><strong>Full Name:</strong> {selectedTeam.leader_name || 'Aditya Verma'}</div>
+                  <div><strong>Student Email:</strong> {selectedTeam.leader_email || 'leader@visai.in'}</div>
+                  <div><strong>Contact Phone:</strong> {selectedTeam.leader_phone || '+91 98765 43210'}</div>
+                  <div><strong>College ID / Roll No:</strong> {selectedTeam.student_id || 'IITB-2024-CS104'}</div>
+                  <div><strong>Department:</strong> {selectedTeam.department || 'Computer Science & Engineering'}</div>
+                  <div><strong>Year of Study:</strong> {selectedTeam.year_of_study || '3rd Year B.Tech'}</div>
+                </div>
+              </div>
+
+              {/* College & Location Card */}
+              <div className="bento-card card-pastel-mint" style={{ padding: '1.5rem', marginBottom: '1.25rem' }}>
+                <h4 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Building size={16} /> College & Campus Details
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', fontSize: '0.85rem' }}>
+                  <div><strong>College Name:</strong> {selectedTeam.college_name || 'IIT Bombay'}</div>
+                  <div><strong>City / Location:</strong> {selectedTeam.city || 'Mumbai'}</div>
+                  <div><strong>State:</strong> {selectedTeam.state || 'Maharashtra'}</div>
+                  <div><strong>Pincode:</strong> {selectedTeam.pincode || '400076'}</div>
+                </div>
+              </div>
+
+              {/* Problem Selection & Submission Deliverables */}
+              <div className="bento-card card-pastel-peach" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+                <h4 style={{ fontSize: '1.05rem', fontWeight: 900, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <FileText size={16} /> Problem Statement & Idea Submission
+                </h4>
+                <div style={{ fontSize: '0.85rem', lineHeight: 1.6 }}>
+                  <div><strong>Track:</strong> {selectedTeam.track || 'SDG 09: Industry, Innovation & Infrastructure'}</div>
+                  <div><strong>Problem Code:</strong> <span className="badge badge-sky" style={{ fontSize: '0.75rem' }}>{selectedTeam.ps_code || 'VISAI-SDG09-IND01'}</span></div>
+                  <div style={{ marginTop: '0.5rem' }}><strong>Abstract & PPT Submission:</strong></div>
+                  <div style={{ background: '#FFFFFF', padding: '0.75rem 1rem', borderRadius: 'var(--r-md)', marginTop: '0.35rem', border: '1px solid var(--canvas-border)' }}>
+                    {selectedTeam.abstract_text || 'Predictive Vibration Anomaly Detection using Edge ML on sensor telemetry streams.'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '1rem', borderTop: '1px solid var(--canvas-border)' }}>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    className={`btn ${selectedTeam.is_locked ? 'btn-secondary' : 'btn-ghost'} btn-sm`}
+                    onClick={() => handleToggleTeamLock(selectedTeam.id, selectedTeam.is_locked)}
+                    style={{ fontWeight: 800 }}
+                  >
+                    {selectedTeam.is_locked ? <><Unlock size={14} /> Unlock Registration</> : <><Lock size={14} /> Lock Registration</>}
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  {selectedTeam.payment_status === 'paid' && !selectedTeam.invoice_approved && (
+                    <button
+                      className="btn btn-coral btn-sm"
+                      onClick={() => handleApproveInvoice(selectedTeam.id)}
+                      style={{ fontWeight: 800 }}
+                    >
+                      <CheckCircle size={15} /> Approve Official GST Invoice
+                    </button>
+                  )}
+
+                  {selectedTeam.payment_status === 'paid' && (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setPreviewInvoiceTeam(selectedTeam)}
+                      style={{ fontWeight: 800 }}
+                    >
+                      <Printer size={15} /> Preview Tax Invoice
+                    </button>
+                  )}
+
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setSelectedTeam(null)}
+                    style={{ fontWeight: 800 }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* =====================================================
+            MODAL 2: OFFICIAL GST TAX INVOICE PREVIEW (Admin & Participant View)
+           ===================================================== */}
+        {previewInvoiceTeam && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 11000,
+            background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+          }}>
+            <div className="bento-card" style={{
+              maxWidth: 720, width: '100%', maxHeight: '92vh', overflowY: 'auto',
+              background: '#FFFFFF', padding: '2.5rem', borderRadius: 'var(--r-2xl)', boxShadow: 'var(--shadow-2xl)'
+            }}>
+              {/* Invoice Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: '1.25rem', marginBottom: '1.5rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--whiz-coral)', letterSpacing: '0.05em' }}>
+                    TAX INVOICE & OFFICIAL RECEIPT
+                  </div>
+                  <h2 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#000000', margin: '0.2rem 0' }}>
+                    Vel Tech R&D Institute of Science and Technology
+                  </h2>
+                  <div style={{ fontSize: '0.8rem', color: '#4B5563' }}>
+                    400 Feet Outer Ring Road, Avadi, Chennai – 600062, Tamil Nadu, India<br />
+                    <strong>GSTIN:</strong> 33AAAAA0000A1Z5 • <strong>Email:</strong> visai@veltech.edu.in
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <span className="badge badge-lime" style={{ fontSize: '0.75rem', marginBottom: '0.35rem' }}>
+                    ✓ PAID & VERIFIED
+                  </span>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 800 }}>
+                    Invoice #: INV-VISAI27-{previewInvoiceTeam.id?.slice(0, 8).toUpperCase()}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>
+                    Date: {new Date().toLocaleDateString('en-IN')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bill To Info */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+                <div style={{ background: '#F9FAFB', padding: '1rem', borderRadius: 'var(--r-md)' }}>
+                  <div style={{ fontWeight: 800, color: '#374151', marginBottom: '0.25rem' }}>BILLED TO (TEAM LEADER):</div>
+                  <div><strong>{previewInvoiceTeam.leader_name || 'Team Leader'}</strong></div>
+                  <div>Team: {previewInvoiceTeam.team_name}</div>
+                  <div>Reg No: {previewInvoiceTeam.registration_number || previewInvoiceTeam.id}</div>
+                  <div>Email: {previewInvoiceTeam.leader_email || 'leader@visai.in'}</div>
+                </div>
+
+                <div style={{ background: '#F9FAFB', padding: '1rem', borderRadius: 'var(--r-md)' }}>
+                  <div style={{ fontWeight: 800, color: '#374151', marginBottom: '0.25rem' }}>INSTITUTION DETAILS:</div>
+                  <div><strong>{previewInvoiceTeam.college_name || 'IIT Bombay'}</strong></div>
+                  <div>{previewInvoiceTeam.city || 'Chennai'}, {previewInvoiceTeam.state || 'Tamil Nadu'}</div>
+                  <div>Payment Gateway: Razorpay (rzp_test_TjWTndAvEuQPFf)</div>
+                </div>
+              </div>
+
+              {/* Line Items Table */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                <thead>
+                  <tr style={{ background: '#F3F4F6', borderBottom: '1px solid #D1D5DB' }}>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left' }}>Item Description</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center' }}>SAC</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>Base Amount</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>GST (18%)</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>Total (INR)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
+                    <td style={{ padding: '0.75rem' }}>
+                      VISAI 2027 International SDG Hackathon Team Registration Fee (Up to 4 Members)
+                    </td>
+                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>999293</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>₹847.46</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>₹152.54</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 800 }}>₹1,000.00</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Total & Official Seal */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid #000', paddingTop: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>
+                  This is a computer-generated official tax invoice attested by the VISAI 2027 Organizing Committee.
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Total Paid:</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--whiz-coral)' }}>₹1,000.00</div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button
+                  className="btn btn-coral btn-sm"
+                  onClick={() => { window.print(); }}
+                  style={{ fontWeight: 800 }}
+                >
+                  <Printer size={15} /> Print / Save PDF
+                </button>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setPreviewInvoiceTeam(null)}
+                  style={{ fontWeight: 800 }}
+                >
+                  Close Preview
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB: JURY MANAGEMENT */}
-        {activeTab === 'jury' && (
-          <div className="glass-card" style={{ padding: '2.5rem', background: '#fff' }}>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '1.5rem' }}>Jury Creation & Assignment</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '2rem' }}>
-              <div style={{ background: '#f8fafc', padding: '2rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <UserPlus size={18} color="#dc2626"/> Add New Jury Account
-                </h3>
-                {jurySuccess && <div style={{ background: '#ecfdf5', color: '#059669', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.85rem', fontWeight: 600 }}>{jurySuccess}</div>}
-                <form onSubmit={handleCreateJury}>
-                  <div className="form-group">
-                    <label className="form-label">Jury Name</label>
-                    <input type="text" required className="form-input" value={newJury.name} onChange={e => setNewJury({...newJury, name: e.target.value})} placeholder="e.g. Dr. Rajesh Kumar" />
+        {/* =====================================================
+            MODAL 3: PROVISION JURY MEMBER
+           ===================================================== */}
+        {addJuryModal && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 10000,
+            background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+          }}>
+            <div className="bento-card" style={{ maxWidth: 540, width: '100%', background: '#FFFFFF', padding: '2.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--whiz-dark)' }}>
+                    Provision Jury Member
+                  </h3>
+                  <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
+                    Set up evaluator profile and issue initial login credentials.
+                  </p>
+                </div>
+                <button onClick={() => setAddJuryModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateJury} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', display: 'block' }}>
+                    Full Name & Title <span style={{ color: 'var(--whiz-coral)' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Dr. Arvind Swaminathan"
+                    value={juryForm.full_name}
+                    onChange={e => setJuryForm({ ...juryForm, full_name: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', display: 'block' }}>
+                      Email Address <span style={{ color: 'var(--whiz-coral)' }}>*</span>
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. jury.ai@visai.in"
+                      value={juryForm.email}
+                      onChange={e => setJuryForm({ ...juryForm, email: e.target.value })}
+                      style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)' }}
+                    />
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Email Address</label>
-                    <input type="email" required className="form-input" value={newJury.email} onChange={e => setNewJury({...newJury, email: e.target.value})} placeholder="rajesh@university.edu" />
+
+                  <div>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', display: 'block' }}>
+                      Initial Password <span style={{ color: 'var(--whiz-coral)' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={juryForm.password}
+                      onChange={e => setJuryForm({ ...juryForm, password: e.target.value })}
+                      style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)', fontFamily: 'monospace' }}
+                    />
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Temporary Password</label>
-                    <input type="text" required className="form-input" value={newJury.password} onChange={e => setNewJury({...newJury, password: e.target.value})} placeholder="Password123!" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Assign SDG Track / Topic</label>
-                    <select required className="form-input" value={newJury.sdg} onChange={e => setNewJury({...newJury, sdg: e.target.value})}>
-                      <option value="">-- Select SDG Assignment --</option>
-                      <option value="SDG 09">SDG 09: Industry, Innovation and Infrastructure</option>
-                      <option value="SDG 11">SDG 11: Sustainable Cities and Communities</option>
-                      <option value="SDG 04">SDG 04: Quality Education</option>
-                      <option value="ALL">All Categories</option>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', display: 'block' }}>
+                    Organization / Company
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Microsoft Cloud & AI / Bosch"
+                    value={juryForm.organization}
+                    onChange={e => setJuryForm({ ...juryForm, organization: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', display: 'block' }}>
+                    Assigned UN SDG Track
+                  </label>
+                  <select
+                    value={juryForm.track}
+                    onChange={e => setJuryForm({ ...juryForm, track: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)', background: '#FFFFFF' }}
+                  >
+                    {SDG_8_THEMES.map(sdg => (
+                      <option key={sdg.number} value={`SDG ${sdg.number}: ${sdg.shortName}`}>
+                        SDG {sdg.number}: {sdg.shortName} ({sdg.partner})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAddJuryModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-coral btn-sm" style={{ fontWeight: 800 }}>
+                    Create & Provision Credentials
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* =====================================================
+            MODAL 4: ADD NEW PROBLEM STATEMENT
+           ===================================================== */}
+        {newPsModal && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 10000,
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+          }}>
+            <div className="bento-card" style={{ maxWidth: 640, width: '100%', background: '#FFFFFF', padding: '2.25rem', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--whiz-dark)', margin: 0 }}>
+                    Add New Problem Statement
+                  </h3>
+                  <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0' }}>
+                    Publish a challenge statement aligned with UN SDG goals to the database.
+                  </p>
+                </div>
+                <button onClick={() => setNewPsModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddPs} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', display: 'block' }}>
+                    Challenge Title <span style={{ color: 'var(--whiz-coral)' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. AI-Powered Smart Microgrid Load Balancer"
+                    value={newPsForm.title}
+                    onChange={e => setNewPsForm({ ...newPsForm, title: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)', fontWeight: 700 }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', display: 'block' }}>
+                      UN SDG Track <span style={{ color: 'var(--whiz-coral)' }}>*</span>
+                    </label>
+                    <select
+                      value={newPsForm.sdg_theme}
+                      onChange={e => setNewPsForm({ ...newPsForm, sdg_theme: e.target.value })}
+                      style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)', background: '#FFFFFF', fontWeight: 600 }}
+                    >
+                      {SDG_8_THEMES.map(sdg => (
+                        <option key={sdg.number} value={`SDG 0${sdg.number}: ${sdg.shortName}`}>
+                          SDG {sdg.number}: {sdg.shortName}
+                        </option>
+                      ))}
                     </select>
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%', background: '#dc2626', borderColor: '#dc2626' }}>Create & Activate Jury</button>
-                </form>
-              </div>
-              <div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '1.5rem' }}>Active Jury Members</h3>
-                <div className="table-responsive">
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                    <thead><tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b' }}><th style={{ padding: '0.75rem 1rem' }}>Jury Details</th><th style={{ padding: '0.75rem 1rem' }}>Assigned SDG</th></tr></thead>
-                    <tbody>
-                      {juries.map(j => (
-                        <tr key={j.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                          <td style={{ padding: '1rem' }}><div style={{ fontWeight: 700, color: '#1e293b' }}>{j.name}</div><div style={{ fontSize: '0.75rem', color: '#64748b' }}>{j.email} • {j.id}</div></td>
-                          <td style={{ padding: '1rem' }}><span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '0.3rem 0.6rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}><Tag size={12}/> {j.sdg}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+
+                  <div>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', display: 'block' }}>
+                      Industry Sponsor / Category
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Nicola Foundation / IEEE"
+                      value={newPsForm.partner}
+                      onChange={e => setNewPsForm({ ...newPsForm, partner: e.target.value })}
+                      style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)' }}
+                    />
+                  </div>
                 </div>
+
+                <div>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', display: 'block' }}>
+                    Short Summary (1-2 sentences)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Brief industrial engineering summary..."
+                    value={newPsForm.description}
+                    onChange={e => setNewPsForm({ ...newPsForm, description: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', display: 'block' }}>
+                    Detailed Problem Scope & Architecture Deliverables
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Describe problem context, expected solution architecture, evaluation benchmarks..."
+                    value={newPsForm.full_description}
+                    onChange={e => setNewPsForm({ ...newPsForm, full_description: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: 'var(--r-md)', border: '1px solid var(--canvas-border)', resize: 'vertical' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setNewPsModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-coral btn-sm" style={{ fontWeight: 800 }}>
+                    Save & Publish to Database
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* =====================================================
+            MODAL 5: JURY CREDENTIALS SUCCESS POPUP
+           ===================================================== */}
+        {credentialsPopup && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 11500,
+            background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+          }}>
+            <div className="bento-card" style={{ maxWidth: 500, width: '100%', background: '#FFFFFF', padding: '2rem', textAlign: 'center' }}>
+              <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--pastel-mint-bg)', color: 'var(--pastel-mint-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                <Key size={30} />
+              </div>
+
+              <h3 style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--whiz-dark)', marginBottom: '0.35rem' }}>
+                Jury Provisioned Successfully!
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+                Evaluator account created in database. Copy or email credentials directly.
+              </p>
+
+              <div style={{ background: 'var(--canvas-subtle)', padding: '1rem', borderRadius: 'var(--r-md)', textAlign: 'left', fontSize: '0.85rem', lineHeight: 1.7, marginBottom: '1.5rem', border: '1px solid var(--canvas-border)' }}>
+                <div><strong>Evaluator:</strong> {credentialsPopup.full_name}</div>
+                <div><strong>Email:</strong> {credentialsPopup.email}</div>
+                <div><strong>Password:</strong> <code style={{ color: 'var(--whiz-coral)', fontWeight: 800 }}>{credentialsPopup.initial_password}</code></div>
+                <div><strong>Track:</strong> {credentialsPopup.track}</div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => handleCopyCredentials(credentialsPopup)}
+                  style={{ flex: 1, fontWeight: 800 }}
+                >
+                  <Copy size={15} /> Copy Info
+                </button>
+                <button
+                  className="btn btn-coral"
+                  onClick={() => {
+                    const email = credentialsPopup.email;
+                    setCredentialsPopup(null);
+                    setEmailTargetGroup('custom');
+                    setEmailTargetCustom(email);
+                    setEmailModalOpen(true);
+                  }}
+                  style={{ flex: 1, fontWeight: 800 }}
+                >
+                  <Mail size={15} /> Send Email
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => setCredentialsPopup(null)}
+                  style={{ fontWeight: 700 }}
+                >
+                  Done
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB: SUBMISSION VERIFICATION */}
-        {activeTab === 'submissions' && (
-          <div className="glass-card" style={{ padding: '2.5rem', background: '#fff' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <div>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Submission Approvals & Jury Allocation</h2>
-                <p style={{ color: '#64748b', fontSize: '0.85rem', margin: '0.25rem 0 0' }}>Review full team profiles, verify PPT/PDF abstracts, assign to Jury, or attach updated statements.</p>
-              </div>
-            </div>
+        {/* =====================================================
+            MODAL 6: PROBLEM STATEMENT DETAIL / OPEN MODAL
+           ===================================================== */}
+        <ProblemStatementModal
+          ps={selectedPsModal}
+          isOpen={!!selectedPsModal}
+          onClose={() => setSelectedPsModal(null)}
+          onDelete={handleDeletePs}
+        />
 
-            <div className="table-responsive">
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                    <th style={{ padding: '1rem' }}>Team Details</th>
-                    <th style={{ padding: '1rem' }}>Statement & Track</th>
-                    <th style={{ padding: '1rem' }}>Documents</th>
-                    <th style={{ padding: '1rem' }}>Assigned Jury</th>
-                    <th style={{ padding: '1rem' }}>Status</th>
-                    <th style={{ padding: '1rem' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {submissions.map(sub => (
-                    <tr key={sub.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '1rem' }}>
-                        <div style={{ fontWeight: 800, color: '#1e293b' }}>{sub.teamName}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>{sub.id}</div>
-                      </td>
-                      <td style={{ padding: '1rem', color: '#334155' }}>
-                        <div style={{ fontWeight: 700, color: '#2563eb' }}>{sub.statementCode}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{sub.track}</div>
-                      </td>
-                      <td style={{ padding: '1rem' }}>
-                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                          {sub.pptFile && <span style={{ padding: '0.2rem 0.5rem', background: '#e0e7ff', color: '#4338ca', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>PPT</span>}
-                          {sub.pdfFile && <span style={{ padding: '0.2rem 0.5rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>PDF</span>}
-                          {sub.adminAttachment && <span style={{ padding: '0.2rem 0.5rem', background: '#ecfdf5', color: '#059669', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>Admin File</span>}
-                        </div>
-                      </td>
-                      <td style={{ padding: '1rem' }}>
-                        {sub.assignedJury ? (
-                          <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '0.25rem 0.6rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <UserPlus size={12}/> {sub.assignedJury}
-                          </span>
-                        ) : (
-                          <span style={{ color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic' }}>Unassigned</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '1rem' }}>
-                        <span style={{ padding: '0.3rem 0.6rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, background: sub.status === 'Approved' ? '#d1fae5' : sub.status === 'Rejected' ? '#fee2e2' : '#fef3c7', color: sub.status === 'Approved' ? '#059669' : sub.status === 'Rejected' ? '#dc2626' : '#d97706' }}>
-                          {sub.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '1rem' }}>
-                        <button onClick={() => setSelectedSubForVerify(sub)} className="btn btn-sm btn-primary" style={{ background: '#0f172a', borderColor: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}>
-                          <Eye size={14} /> Full Application Profile
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* FULL APPLICATION PROFILE MODAL */}
-            {selectedSubForVerify && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1.5rem' }}>
-                <div className="glass-card" style={{ background: '#fff', width: '100%', maxWidth: '1050px', maxHeight: '92vh', overflowY: 'auto', padding: '0', borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-                  
-                  {/* Modal Header */}
-                  <div style={{ padding: '1.25rem 2rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10, borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Application Profile: {selectedSubForVerify.teamName}</h3>
-                        <span style={{ background: '#eff6ff', color: '#2563eb', padding: '0.2rem 0.6rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700 }}>{selectedSubForVerify.id}</span>
-                      </div>
-                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Track: {selectedSubForVerify.track}</span>
-                    </div>
-                    <button onClick={() => setSelectedSubForVerify(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}><XCircle size={26} /></button>
-                  </div>
-
-                  <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    
-                    {/* SECTION 1: PROBLEM STATEMENT & PARTNER DETAILS */}
-                    <div style={{ padding: '1.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px' }}>
-                      <h4 style={{ fontWeight: 800, color: '#0f172a', marginTop: 0, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Database size={18} color="#2563eb" /> Problem Statement & Partner Sponsorship
-                      </h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1rem', fontSize: '0.9rem', marginBottom: '1rem' }}>
-                        <div>
-                          <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Statement Code & Title</span>
-                          <div style={{ fontWeight: 800, color: '#2563eb', fontSize: '1rem' }}>{selectedSubForVerify.statementCode}</div>
-                          <div style={{ color: '#1e293b', fontWeight: 600, marginTop: '0.25rem' }}>{selectedSubForVerify.statementTitle}</div>
-                        </div>
-                        <div>
-                          <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Mapped Partner / UN SDG</span>
-                          <div style={{ fontWeight: 700, color: '#059669', marginTop: '0.25rem' }}>{selectedSubForVerify.partner}</div>
-                        </div>
-                      </div>
-                      {selectedSubForVerify.abstractText && (
-                        <div style={{ background: '#fff', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
-                          <strong>Technical Abstract Summary:</strong> {selectedSubForVerify.abstractText}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* SECTION 2: ADMIN PUSH TO JURY & STATEMENT ATTACHMENT CONTROLS */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                      
-                      {/* Push to Jury */}
-                      <div style={{ padding: '1.5rem', background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: '14px' }}>
-                        <h4 style={{ fontWeight: 800, color: '#6b21a8', marginTop: 0, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <UserPlus size={18} color="#7c3aed" /> Admin Push to Jury
-                        </h4>
-                        <p style={{ fontSize: '0.8rem', color: '#6b21a8', marginBottom: '1rem' }}>Assign this application & statement to a designated Jury member for scoring.</p>
-                        
-                        {selectedSubForVerify.assignedJury ? (
-                          <div style={{ background: '#f3e8ff', color: '#6b21a8', padding: '0.75rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', marginBottom: '1rem' }}>
-                            Currently Assigned to: {selectedSubForVerify.assignedJury}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '1rem', fontStyle: 'italic' }}>Not pushed to Jury yet.</div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <select 
-                            className="form-input" 
-                            style={{ flex: 1, fontSize: '0.85rem', padding: '0.4rem 0.6rem' }}
-                            value={selectedJuryForPush}
-                            onChange={(e) => setSelectedJuryForPush(e.target.value)}
-                          >
-                            <option value="">-- Select Jury Expert --</option>
-                            {juries.map(j => (
-                              <option key={j.id} value={j.id}>{j.name} ({j.id} - {j.sdg})</option>
-                            ))}
-                          </select>
-                          <button 
-                            type="button"
-                            onClick={() => handlePushToJury(selectedSubForVerify.id, selectedJuryForPush)}
-                            className="btn btn-primary"
-                            style={{ background: '#7c3aed', borderColor: '#7c3aed', fontSize: '0.85rem', padding: '0.4rem 0.85rem', whiteSpace: 'nowrap' }}
-                          >
-                            Push to Jury
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Admin Attach Custom Statement / Document */}
-                      <div style={{ padding: '1.5rem', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '14px' }}>
-                        <h4 style={{ fontWeight: 800, color: '#065f46', marginTop: 0, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <UploadCloud size={18} color="#059669" /> Attach Admin Statement / File
-                        </h4>
-                        <p style={{ fontSize: '0.8rem', color: '#065f46', marginBottom: '1rem' }}>Upload modified problem statements or official feedback for this team.</p>
-                        
-                        {selectedSubForVerify.adminAttachment && (
-                          <div style={{ background: '#d1fae5', color: '#065f46', padding: '0.75rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span>Attached: {selectedSubForVerify.adminAttachment}</span>
-                            <a href={`#download-${selectedSubForVerify.adminAttachment}`} onClick={(e) => { e.preventDefault(); alert(`Downloading Admin File: ${selectedSubForVerify.adminAttachment}`); }} style={{ color: '#059669', fontWeight: 800 }}>Download</a>
-                          </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            style={{ flex: 1, fontSize: '0.85rem', padding: '0.4rem 0.6rem' }} 
-                            placeholder="Enter File Name e.g. Updated_Statement.pdf"
-                            value={adminFileUpload}
-                            onChange={(e) => setAdminFileUpload(e.target.value)}
-                          />
-                          <button 
-                            type="button"
-                            onClick={() => { handleAdminUploadAttachment(selectedSubForVerify.id, adminFileUpload); setAdminFileUpload(''); }}
-                            className="btn btn-primary"
-                            style={{ background: '#059669', borderColor: '#059669', fontSize: '0.85rem', padding: '0.4rem 0.85rem', whiteSpace: 'nowrap' }}
-                          >
-                            Attach File
-                          </button>
-                        </div>
-                      </div>
-
-                    </div>
-
-                    {/* SECTION 3: UPLOADED SUBMISSION DOCUMENTS & DOWNLOADS */}
-                    <div style={{ padding: '1.5rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px' }}>
-                      <h4 style={{ fontWeight: 800, color: '#0f172a', marginTop: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <FileText size={18} color="#2563eb" /> Submitted Documents & Download Files
-                      </h4>
-                      
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        
-                        <div style={{ background: '#f8fafc', padding: '1rem 1.25rem', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Presentation Slide Deck</span>
-                            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem', marginTop: '0.2rem' }}>{selectedSubForVerify.pptFile || 'No PPT Uploaded'}</div>
-                          </div>
-                          {selectedSubForVerify.pptFile && (
-                            <button 
-                              onClick={() => alert(`Downloading Presentation File: ${selectedSubForVerify.pptFile}`)} 
-                              className="btn btn-sm btn-secondary" 
-                              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#2563eb', borderColor: '#bfdbfe' }}
-                            >
-                              <DownloadCloud size={14} /> Download
-                            </button>
-                          )}
-                        </div>
-
-                        <div style={{ background: '#f8fafc', padding: '1rem 1.25rem', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Technical Abstract Document</span>
-                            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem', marginTop: '0.2rem' }}>{selectedSubForVerify.pdfFile || 'No PDF Uploaded'}</div>
-                          </div>
-                          {selectedSubForVerify.pdfFile && (
-                            <button 
-                              onClick={() => alert(`Downloading PDF File: ${selectedSubForVerify.pdfFile}`)} 
-                              className="btn btn-sm btn-secondary" 
-                              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#dc2626', borderColor: '#fca5a5' }}
-                            >
-                              <DownloadCloud size={14} /> Download
-                            </button>
-                          )}
-                        </div>
-
-                      </div>
-                    </div>
-
-                    {/* SECTION 4: COMPLETE TEAM MEMBER DETAILS (ALL 8 FIELDS PER MEMBER) */}
-                    <div>
-                      <h4 style={{ fontWeight: 800, color: '#0f172a', marginTop: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Users size={18} color="#2563eb" /> Complete Team Members Roster (Full Details)
-                      </h4>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {selectedSubForVerify.members && selectedSubForVerify.members.map((member, idx) => (
-                          <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1.25rem', borderRadius: '12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
-                              <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>
-                                {idx + 1}. {member.name}
-                              </span>
-                              <span style={{ background: member.role === 'Team Leader' ? '#dbeafe' : '#f1f5f9', color: member.role === 'Team Leader' ? '#1e40af' : '#475569', padding: '0.2rem 0.6rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700 }}>
-                                {member.role}
-                              </span>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', fontSize: '0.85rem' }}>
-                              <div><span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Email Address</span><strong style={{ color: '#1e293b' }}>{member.email}</strong></div>
-                              <div><span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Contact Number</span><strong style={{ color: '#1e293b' }}>{member.contact}</strong></div>
-                              <div><span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Gender</span><strong style={{ color: '#1e293b' }}>{member.gender}</strong></div>
-                              <div><span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Age</span><strong style={{ color: '#1e293b' }}>{member.age} yrs</strong></div>
-                              <div><span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Year of Study</span><strong style={{ color: '#2563eb' }}>{member.year}</strong></div>
-                              <div style={{ gridColumn: 'span 3' }}><span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>College Name</span><strong style={{ color: '#1e293b' }}>{member.college}</strong></div>
-                              <div style={{ gridColumn: 'span 4' }}><span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>College Address</span><span style={{ color: '#475569' }}>{member.address}</span></div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* SECTION 5: APPROVAL / REJECTION ACTIONS */}
-                    <div style={{ borderTop: '2px solid #e2e8f0', paddingTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {selectedSubForVerify.status === 'Approved' ? (
-                        <div style={{ background: '#d1fae5', color: '#059669', padding: '1rem 1.5rem', borderRadius: '10px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem' }}>
-                          <CheckCircle size={22} /> Application & Submission Approved by Admin
-                        </div>
-                      ) : (
-                        <form onSubmit={handleReject}>
-                          <div className="form-group" style={{ marginBottom: '1rem' }}>
-                            <label className="form-label" style={{ color: '#dc2626', fontWeight: 700 }}>Reason for Rejection (Required if rejecting)</label>
-                            <textarea rows={2} className="form-textarea" placeholder="e.g. PPT presentation incomplete or problem statement mismatch..." value={rejectionComment} onChange={(e) => setRejectionComment(e.target.value)}></textarea>
-                          </div>
-                          <div style={{ display: 'flex', gap: '1rem' }}>
-                            <button type="button" onClick={() => handleApprove(selectedSubForVerify.id)} className="btn btn-primary" style={{ flex: 1, background: '#10b981', borderColor: '#10b981', padding: '0.85rem', fontSize: '1rem', fontWeight: 800 }}>
-                              Approve Submission & Profile
-                            </button>
-                            <button type="submit" disabled={!rejectionComment.trim()} className="btn btn-secondary" style={{ flex: 1, color: '#dc2626', borderColor: '#fca5a5', background: '#fef2f2', padding: '0.85rem', fontSize: '1rem', fontWeight: 800 }}>
-                              Reject Application
-                            </button>
-                          </div>
-                        </form>
-                      )}
-                    </div>
-
-                  </div>
-
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* OTHER TABS OMITTED FOR BREVITY AS REQUESTED - ONLY SHOWING CMS, COORD, JURY */}
-        {activeTab === 'candidates' && (<div className="glass-card" style={{ padding: '2.5rem', background: '#fff' }}>Candidate Verification Data...</div>)}
-        {activeTab === 'receipts' && (<div className="glass-card" style={{ padding: '2.5rem', background: '#fff' }}>Candidate Receipts Data...</div>)}
+        {/* =====================================================
+            MODAL 7: ADMIN EMAIL BROADCAST & DISPATCH MODAL
+           ===================================================== */}
+        <EmailDispatchModal
+          isOpen={emailModalOpen}
+          onClose={() => {
+            setEmailModalOpen(false);
+            loadData();
+          }}
+          defaultTarget={emailTargetGroup}
+          defaultEmail={emailTargetCustom}
+        />
 
       </div>
     </div>

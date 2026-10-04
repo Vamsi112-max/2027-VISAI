@@ -1,427 +1,744 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Sparkles, 
-  Clock, 
-  Trophy, 
-  ArrowRight, 
-  Cpu, 
-  Code2, 
-  BookOpen, 
-  Globe, 
-  CheckCircle2,
-  FileText,
-  ChevronLeft,
-  ChevronRight,
-  Plane,
-  Building,
-  Layers,
-  Award
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  ArrowRight, Sparkles, Users, Award, Play,
+  ChevronRight, ChevronLeft, Globe, Layers,
+  CheckCircle2, Cpu, Trophy, Zap, ShieldCheck,
+  Image as ImageIcon, Edit3
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useSiteContent } from '../context/SiteContentContext';
+import InlineEditBox from './admin/InlineEditBox';
 
-const HERO_SLIDES = [
-  {
-    id: 1,
-    badge: "17th Edition Landmark Model",
-    title: "From Project Expo to 36 / 48-Hour High-Impact Hackathon",
-    subtitle: "Students solve real-world problems under time constraints, collaborate directly with MNCs, and develop practical commercial solutions.",
-    highlight: "Real Problems. Real Innovation. Real Impact.",
-    icon: Layers,
-    color: "#2563eb",
-    bgTint: "#eff6ff"
-  },
-  {
-    id: 2,
-    badge: "Global Recognition & Incentives",
-    title: "Seed Grants & Sponsored International Trip to Malaysia",
-    subtitle: "Vel Tech fully funds the top 2 performing student teams to present their engineering achievements at a leading Malaysian university.",
-    highlight: "Plus patent filing assistance & Vel Tech TBI pre-seed incubation.",
-    icon: Plane,
-    color: "#d97706",
-    bgTint: "#fffbeb"
-  },
-  {
-    id: 3,
-    badge: "Industry Problem Statements",
-    title: "42+ Real Challenges from Ashok Leyland, Renault Nissan & L&T",
-    subtitle: "Thirteen leading automotive, energy, and tech corporations have provided authentic industrial engineering challenges mapped to UN SDGs.",
-    highlight: "Direct internship, pre-placement, and pilot contract opportunities.",
-    icon: Building,
-    color: "#059669",
-    bgTint: "#f0fdf4"
-  },
-  {
-    id: 4,
-    badge: "Dual Track Release Strategy",
-    title: "Software (On-Spot Venue) vs Hardware (7-10 Days Prior)",
-    subtitle: "Software teams build everything from scratch during the hackathon; Hardware teams receive challenges early for component sourcing & research.",
-    highlight: "Strict anti-plagiarism and live bench prototype verification.",
-    icon: Code2,
-    color: "#0284c7",
-    bgTint: "#f0f9ff"
-  },
-  {
-    id: 5,
-    badge: "Automated Digital Publication",
-    title: "Official VISAI 2027 Innovation Souvenir & Project Book",
-    subtitle: "Every approved innovation is automatically structured, peer-reviewed, and published into the permanent VISAI compendium.",
-    highlight: "Official NAAC / NBA accredited innovation documentation.",
-    icon: BookOpen,
-    color: "#7c3aed",
-    bgTint: "#f5f3ff"
-  }
-];
+export default function Hero({ onRegister, onExploreProblems, onExploreGallery }) {
+  const { user } = useAuth();
+  const { content, isVisualEditMode } = useSiteContent();
 
-export default function Hero({ onExploreProblems, onEnterPortal, onOpenSouvenir, heroContent }) {
-  // Live Countdown state to VISAI Hackathon Kickoff
-  const [timeLeft, setTimeLeft] = useState({
-    days: 42,
-    hours: 14,
-    minutes: 38,
-    seconds: 19
-  });
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const touchStartX = useRef(null);
 
-  const [activeSlide, setActiveSlide] = useState(0);
+  const heroData = content?.hero || {};
+  const slides = (heroData.slides && heroData.slides.length > 0) ? heroData.slides : [
+    {
+      id: 'slide-mentors',
+      theme: 'yellow',
+      title: 'Young Innovators,',
+      highlight: 'Big Breakthroughs! ✨',
+      description: 'Every edition is a transformative journey in our Innovation Arena, MakerSpaces & Cloud AI Labs.',
+      badgeText: '40+ Mentors & Industry Jury',
+      badgeSub: 'From Google, Bosch, Microsoft & IEEE',
+      avatars: [
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&auto=format&fit=crop&q=80',
+      ],
+      photoSrc: '/images/gallery/hero_hackathon.jpg',
+      photoBadge: 'VISAI Action Arena',
+      photoTitle: '36-Hour Prototype Sprint',
+      photoSub: 'IoT • Edge AI • Hardware Testing',
+      ctaPills: ['SDG 1–17', 'Robotics', 'Industry 5.0'],
+      ctaText: 'We believe every student engineer has the potential to engineer solutions that change lives.',
+      ctaButton: 'Getting Started',
+    },
+    {
+      id: 'slide-arena',
+      theme: 'lime',
+      title: '36 Hours Non-Stop,',
+      highlight: 'Live Hardware & Code! ⚡',
+      description: 'Student innovators assembling circuits, microcontrollers and training real-time AI models on site.',
+      badgeText: 'National Innovator Arena',
+      badgeSub: 'Across 350+ Colleges Nationwide',
+      avatars: [
+        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100&auto=format&fit=crop&q=80',
+      ],
+      photoSrc: '/images/gallery/grand_stage.jpg',
+      photoBadge: 'Grand Finale Auditorium',
+      photoTitle: 'National Valedictory Stage',
+      photoSub: '₹5,00,000 Cash Pool • TBI Grants',
+      ctaPills: ['Cash Prizes', 'Patent Filing', 'TBI Incubation'],
+      ctaText: 'Top prototypes receive direct seed funding and incubation support through Vel Tech Technology Business Incubator.',
+      ctaButton: 'View Past Winners',
+    },
+    {
+      id: 'slide-robotics',
+      theme: 'peach',
+      title: 'Hardware & MakerSpace,',
+      highlight: 'Robotics Obstacle Arena! 🤖',
+      description: 'High-speed testing tracks for LiDAR rovers, surveillance drones, and sub-sea marine robotic prototypes.',
+      badgeText: 'Vel Tech MakerSpace Lab 4',
+      badgeSub: '3D Printers • Oscilloscopes • SMD Benches',
+      avatars: [
+        'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+      ],
+      photoSrc: '/images/gallery/robotics_demo.jpg',
+      photoBadge: 'Robotics Arena 2026',
+      photoTitle: 'Hardware Prototype Track',
+      photoSub: 'Autonomous Rovers • Microcontroller Nodes',
+      ctaPills: ['Hardware', 'IoT Telemetry', 'TinyML'],
+      ctaText: 'Test your physical embedded prototypes in real-time with comprehensive sensor benches and 24/7 technical mentors.',
+      ctaButton: 'Explore Hardware PS',
+    },
+    {
+      id: 'slide-jury',
+      theme: 'lavender',
+      title: 'Double-Blind Review,',
+      highlight: 'Industry Jury Evaluations! ⚖️',
+      description: 'Senior tech leads from Nicola Foundation, IEEE, CREDAI & Microsoft evaluate scalability and societal impact.',
+      badgeText: '32 Domain Specialists',
+      badgeSub: 'Clean Energy • Smart Cities • Health AI',
+      avatars: [
+        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80',
+      ],
+      photoSrc: '/images/gallery/jury_pitching.jpg',
+      photoBadge: 'Evaluation Hub',
+      photoTitle: 'Industry Live Pitching',
+      photoSub: 'Stall Demos • Code & Circuit Inspection',
+      ctaPills: ['5-Slide PPT', 'Repo Review', 'Live Pitch'],
+      ctaText: 'Showcase your prototype directly to executive evaluators and industry heads with guaranteed feedback scorecards.',
+      ctaButton: 'View Rules & Rubric',
+    },
+  ];
 
+  // Auto-Slide Timer (every 4.5 seconds when not hovered and not editing)
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
-        if (prev.minutes > 0) return { ...prev, minutes: 59, seconds: 59 };
-        if (prev.hours > 0) return { ...prev, hours: prev.hours - 1, minutes: 59, seconds: 59 };
-        return prev;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    if (isPaused || isVisualEditMode) return;
+    const interval = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % slides.length);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [isPaused, isVisualEditMode, slides.length]);
 
-  useEffect(() => {
-    const slideTimer = setInterval(() => {
-      setActiveSlide(prev => (prev + 1) % HERO_SLIDES.length);
-    }, 5500);
-    return () => clearInterval(slideTimer);
-  }, []);
+  const nextSlide = () => setCurrentSlide(prev => (prev + 1) % slides.length);
+  const prevSlide = () => setCurrentSlide(prev => (prev - 1 + slides.length) % slides.length);
 
-  const currentHeroSlide = HERO_SLIDES[activeSlide];
-  const IconComponent = currentHeroSlide.icon;
+  const prevIdx = (currentSlide - 1 + slides.length) % slides.length;
+  const nextIdx = (currentSlide + 1) % slides.length;
+
+  const activeSlide = slides[currentSlide] || slides[0];
+  const prevSlideData = slides[prevIdx] || slides[0];
+  const nextSlideData = slides[nextIdx] || slides[0];
+
+  // Touch Swipe Handlers for Mobile Sliding
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!touchStartX.current) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    if (diff > 45) nextSlide();
+    else if (diff < -45) prevSlide();
+    touchStartX.current = null;
+  };
 
   return (
-    <section className="section" style={{ paddingTop: '3.5rem', paddingBottom: '4.5rem', overflow: 'hidden' }}>
-      <div className="container">
+    <section className="whiz-hero-wrapper" style={{ position: 'relative', overflow: 'hidden', paddingBottom: '3rem' }}>
+      <div className="container-wide" style={{ position: 'relative' }}>
         
-        {/* Top Tagline Pill */}
-        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <div className="badge-tag">
-            <Sparkles size={14} className="float-element" />
-            <span>Vel Tech Presents • VISAI 2027 • 17th Edition</span>
-          </div>
-        </div>
-
-        {/* Hero Main Heading */}
-        <div style={{ textAlign: 'center', maxWidth: '980px', margin: '0 auto 1.5rem' }}>
-          <h1 style={{
-            fontSize: 'clamp(2.4rem, 5.5vw, 4.4rem)',
-            fontWeight: 900,
-            lineHeight: 1.12,
-            letterSpacing: '-0.035em',
-            color: '#0f172a',
+        {/* Top Header Title & Subtitle */}
+        <div style={{ textAlign: 'center', maxWidth: 920, margin: '0 auto 2.5rem' }}>
+          
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.4rem 1.1rem',
+            borderRadius: 'var(--r-full)',
+            background: '#FFFFFF',
+            border: '1px solid var(--canvas-border)',
+            boxShadow: 'var(--shadow-xs)',
             marginBottom: '1.25rem'
           }}>
-            {heroContent?.title.split('.').map((sentence, idx, arr) => (
-              <React.Fragment key={idx}>
-                {idx === arr.length - 2 ? (
-                  <span className="gradient-text-cyan">{sentence}.</span>
-                ) : (
-                  sentence + (idx < arr.length - 1 ? '.' : '')
-                )}
-                {' '}
-              </React.Fragment>
-            ))}
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: 'var(--whiz-coral)',
+              display: 'inline-block'
+            }} />
+            <span style={{ fontSize: '0.825rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.02em' }}>
+              <InlineEditBox fieldPath="hero.badge" fieldLabel="Hero Badge" value={heroData.badge || 'VISAI 2027 • 17th International SDG Hackathon'} />
+            </span>
+          </div>
+
+          <h1 className="hero-main-title">
+            <InlineEditBox fieldPath="hero.titleLine1" fieldLabel="Hero Title Line 1" value={heroData.titleLine1 || 'Innovate, Build, Transform:'} />
+            <br />
+            <span style={{
+              background: 'linear-gradient(135deg, #181A20 0%, #2A2E3D 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}>
+              <InlineEditBox fieldPath="hero.titleLine2Gradient" fieldLabel="Hero Title Gradient" value={heroData.titleLine2Gradient || 'Bright Futures'} />
+            </span>{' '}
+            <span style={{
+              color: 'var(--whiz-coral)',
+              display: 'inline-block',
+              position: 'relative'
+            }}>
+              <InlineEditBox fieldPath="hero.titleLine2Accent" fieldLabel="Hero Title Accent" value={heroData.titleLine2Accent || 'Begin Here.'} />
+            </span>
           </h1>
 
           <p style={{
-            fontSize: 'clamp(1.05rem, 1.8vw, 1.3rem)',
-            color: '#475569',
-            lineHeight: 1.65,
-            maxWidth: '820px',
-            margin: '0 auto'
+            fontSize: '1.15rem',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.7,
+            maxWidth: 760,
+            margin: '0 auto',
+            fontWeight: 500
           }}>
-            {heroContent?.description}
+            <InlineEditBox fieldPath="hero.subtitle" fieldLabel="Hero Subtitle" value={heroData.subtitle || '17 UN SDG Tracks • 36-Hour National Prototype Sprint • ₹5,00,000+ Prize Pool • Organized by Vel Tech R&D Institute'} />
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          marginBottom: '2.5rem'
-        }}>
-          <button onClick={onExploreProblems} className="btn btn-lg btn-primary">
-            <span>Explore Industry Challenges</span>
-            <ArrowRight size={18} />
-          </button>
+        {/* =========================================================================
+            MULTI-LAYER 3D SLIDING WINDOWS SHOWCASE (Center Stage + Left/Right Depth Cards)
+           ========================================================================= */}
+        <div
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          style={{
+            position: 'relative',
+            width: '100%',
+            maxWidth: '100%',
+            margin: '0 auto',
+            perspective: '1400px',
+          }}
+        >
+          {/* Outer Sliding Carousel Track Container */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1.25rem',
+              position: 'relative',
+              width: '100%',
+            }}
+          >
 
-          <button onClick={onEnterPortal} className="btn btn-lg btn-secondary">
-            <span>Enter Role Portals & Demo Login</span>
-          </button>
+            {/* =====================================================
+                FAR LEFT BACKGROUND PEEKING SLIDING WINDOW CARD
+               ===================================================== */}
+            <div
+              onClick={prevSlide}
+              className={`sliding-window-bg-card sliding-window-left card-pastel-${prevSlideData.theme}`}
+              title="Click to view previous slide window"
+              style={{
+                width: '260px',
+                height: '410px',
+                borderRadius: 'var(--r-2xl)',
+                padding: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                flexShrink: 0,
+                opacity: 0.55,
+                transform: 'rotateY(18deg) scale(0.88) translateZ(-60px)',
+                cursor: 'pointer',
+                transition: 'all 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.06)',
+                border: '1.5px solid rgba(255,255,255,0.8)',
+                backdropFilter: 'blur(8px)',
+                position: 'relative',
+                overflow: 'hidden',
+                userSelect: 'none',
+              }}
+            >
+              {/* Peek Label */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span className="badge badge-dark" style={{ fontSize: '0.68rem', opacity: 0.9 }}>
+                  ◀ Previous
+                </span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--whiz-dark)' }}>
+                  {prevSlideData.badgeText?.slice(0, 18)}...
+                </span>
+              </div>
 
-          <button onClick={onOpenSouvenir} className="btn btn-lg btn-amber">
-            <BookOpen size={18} />
-            <span>Innovation Souvenir Book</span>
-          </button>
-        </div>
+              <div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--whiz-dark)', marginBottom: '0.25rem' }}>
+                  {prevSlideData.title}
+                </div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--whiz-coral)' }}>
+                  {prevSlideData.highlight}
+                </div>
+              </div>
 
-        {/* MULTI-SLIDE SHOWCASE CAROUSEL (Hero Presentation Slides) */}
-        <div className="glass-card" style={{
-          padding: '2rem 2.5rem',
-          maxWidth: '1080px',
-          margin: '0 auto 3rem',
-          background: currentHeroSlide.bgTint,
-          border: `2px solid ${currentHeroSlide.color}33`,
-          borderRadius: '20px',
-          boxShadow: '0 12px 36px -8px rgba(15, 23, 42, 0.08)',
-          position: 'relative'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '10px',
-                background: currentHeroSlide.color,
-                color: '#fff',
+              {/* Mini Preview Thumbnail */}
+              <div style={{ height: 130, borderRadius: 'var(--r-lg)', overflow: 'hidden', position: 'relative' }}>
+                <img
+                  src={prevSlideData.photoSrc}
+                  alt={prevSlideData.photoTitle}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.9)' }}
+                />
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)',
+                  display: 'flex', alignItems: 'flex-end', padding: '0.5rem'
+                }}>
+                  <span style={{ color: '#fff', fontSize: '0.75rem', fontWeight: 800 }}>
+                    {prevSlideData.photoTitle}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* =====================================================
+                CENTER ACTIVE 3-CARD BENTO SLIDING WINDOW
+               ===================================================== */}
+            <div
+              style={{
+                flex: '1 1 1100px',
+                maxWidth: '1100px',
+                display: 'grid',
+                gridTemplateColumns: 'minmax(270px, 1fr) minmax(360px, 1.4fr) minmax(270px, 1fr)',
+                gap: '1.25rem',
+                alignItems: 'stretch',
+                transition: 'all 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
+                zIndex: 10,
+              }}
+              className="hero-bento-grid"
+            >
+              
+              {/* Left Card: Mentors & Innovation Network */}
+              <div
+                className={`bento-card card-pastel-${activeSlide.theme}`}
+                style={{
+                  padding: '1.65rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '1.25rem',
+                  minHeight: '430px',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.04)',
+                  animation: 'fadeIn 0.35s ease-out'
+                }}
+              >
+                <div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.4rem' }}>
+                    <span style={{ fontSize: '1.15rem', fontWeight: 800 }}>
+                      <InlineEditBox
+                        fieldPath={`hero.slides.${currentSlide}.title`}
+                        fieldLabel={`Slide ${currentSlide + 1} Title`}
+                        value={activeSlide.title}
+                      />
+                    </span>
+                  </div>
+                  <h3 style={{ fontSize: '1.3rem', fontWeight: 900, lineHeight: 1.25, marginBottom: '0.5rem' }}>
+                    <InlineEditBox
+                      fieldPath={`hero.slides.${currentSlide}.highlight`}
+                      fieldLabel={`Slide ${currentSlide + 1} Highlight`}
+                      value={activeSlide.highlight}
+                    />
+                  </h3>
+                  <p style={{ fontSize: '0.85rem', lineHeight: 1.55, opacity: 0.9 }}>
+                    <InlineEditBox
+                      fieldPath={`hero.slides.${currentSlide}.description`}
+                      fieldLabel={`Slide ${currentSlide + 1} Description`}
+                      value={activeSlide.description}
+                      type="textarea"
+                    />
+                  </p>
+                </div>
+
+                {/* Avatar Stack Box - Fixed non-overflowing container */}
+                <div style={{
+                  background: '#FFFFFF',
+                  borderRadius: 'var(--r-xl)',
+                  padding: '0.75rem 0.9rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
+                  border: '1px solid rgba(0,0,0,0.06)',
+                  marginTop: 'auto',
+                  flexShrink: 0
+                }}>
+                  <div className="avatar-stack" style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                    {(activeSlide.avatars || []).map((img, i) => (
+                      <img
+                        key={i}
+                        src={img}
+                        alt="Mentor"
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          border: '2px solid #FFFFFF',
+                          marginLeft: i === 0 ? 0 : -8,
+                          flexShrink: 0
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                    <div style={{
+                      fontSize: '0.825rem',
+                      fontWeight: 800,
+                      color: 'var(--whiz-dark)',
+                      lineHeight: 1.2,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      <InlineEditBox
+                        fieldPath={`hero.slides.${currentSlide}.badgeText`}
+                        fieldLabel={`Slide ${currentSlide + 1} Badge Text`}
+                        value={activeSlide.badgeText}
+                      />
+                    </div>
+                    <div style={{
+                      fontSize: '0.72rem',
+                      color: 'var(--text-muted)',
+                      lineHeight: 1.2,
+                      marginTop: '2px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      <InlineEditBox
+                        fieldPath={`hero.slides.${currentSlide}.badgeSub`}
+                        fieldLabel={`Slide ${currentSlide + 1} Badge Sub`}
+                        value={activeSlide.badgeSub}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Center Card: Interactive Live Photo / Prototype Arena */}
+              <div
+                className="hero-photo-card"
+                style={{
+                  minHeight: '430px',
+                  height: '100%',
+                  position: 'relative',
+                  borderRadius: 'var(--r-2xl)',
+                  overflow: 'hidden',
+                  boxShadow: '0 12px 36px rgba(0,0,0,0.08)',
+                  animation: 'fadeIn 0.35s ease-out'
+                }}
+              >
+                <InlineEditBox
+                  fieldPath={`hero.slides.${currentSlide}.photoSrc`}
+                  fieldLabel={`Slide ${currentSlide + 1} Image URL`}
+                  value={activeSlide.photoSrc}
+                  type="image"
+                  style={{ width: '100%', height: '100%' }}
+                >
+                  <img
+                    src={activeSlide.photoSrc}
+                    alt={activeSlide.photoTitle}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </InlineEditBox>
+                
+                {/* Top Playful Ribbon */}
+                <div className="squiggly-ribbon" style={{ zIndex: 5 }}>
+                  <span style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: '#10B981', display: 'inline-block',
+                    boxShadow: '0 0 8px #10B981'
+                  }} />
+                  <span>
+                    <InlineEditBox
+                      fieldPath={`hero.slides.${currentSlide}.photoBadge`}
+                      fieldLabel={`Slide ${currentSlide + 1} Photo Ribbon`}
+                      value={activeSlide.photoBadge}
+                    />
+                  </span>
+                </div>
+
+                {/* Bottom Glassmorphic Control Pill */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: 14,
+                  left: 14,
+                  right: 14,
+                  background: 'rgba(24, 26, 32, 0.90)',
+                  backdropFilter: 'blur(12px)',
+                  borderRadius: 'var(--r-xl)',
+                  padding: '0.85rem 1.15rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  color: '#FFFFFF',
+                  zIndex: 5
+                }}>
+                  <div style={{ minWidth: 0, paddingRight: '0.5rem' }}>
+                    <div style={{ fontSize: '0.925rem', fontWeight: 900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <InlineEditBox
+                        fieldPath={`hero.slides.${currentSlide}.photoTitle`}
+                        fieldLabel={`Slide ${currentSlide + 1} Photo Title`}
+                        value={activeSlide.photoTitle}
+                      />
+                    </div>
+                    <div style={{ fontSize: '0.735rem', color: 'rgba(255,255,255,0.75)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <InlineEditBox
+                        fieldPath={`hero.slides.${currentSlide}.photoSub`}
+                        fieldLabel={`Slide ${currentSlide + 1} Photo Sub`}
+                        value={activeSlide.photoSub}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={onExploreGallery}
+                    style={{
+                      background: 'var(--whiz-coral)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 'var(--r-full)',
+                      padding: '0.45rem 1rem',
+                      fontSize: '0.785rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      boxShadow: 'var(--shadow-coral)',
+                      flexShrink: 0
+                    }}
+                  >
+                    <span>View Gallery</span>
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Card: Action & SDGs Capsules */}
+              <div
+                className={`bento-card card-pastel-${activeSlide.theme || 'lavender'}`}
+                style={{
+                  padding: '1.65rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '1.25rem',
+                  minHeight: '430px',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.04)',
+                  animation: 'fadeIn 0.35s ease-out'
+                }}
+              >
+                {/* Pills Capsules */}
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  {(activeSlide.ctaPills || []).map(p => (
+                    <span key={p} className={`badge badge-${activeSlide.theme || 'lavender'}`} style={{ fontSize: '0.75rem' }}>
+                      {p}
+                    </span>
+                  ))}
+                </div>
+
+                <div style={{ margin: 'auto 0' }}>
+                  <p style={{ fontSize: '0.9rem', color: `var(--pastel-${activeSlide.theme || 'lavender'}-text)`, lineHeight: 1.6, fontWeight: 600 }}>
+                    <InlineEditBox
+                      fieldPath={`hero.slides.${currentSlide}.ctaText`}
+                      fieldLabel={`Slide ${currentSlide + 1} CTA Text`}
+                      value={activeSlide.ctaText}
+                      type="textarea"
+                    />
+                  </p>
+                </div>
+
+                {/* Action Button */}
+                <div style={{ marginTop: 'auto' }}>
+                  {!user ? (
+                    <button
+                      className="btn btn-coral"
+                      onClick={onRegister}
+                      style={{ width: '100%', padding: '0.85rem 1.25rem', fontWeight: 800 }}
+                    >
+                      <span>{activeSlide.ctaButton || 'Register Now'}</span>
+                      <ArrowRight size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-dark"
+                      onClick={() => window.dispatchEvent(new CustomEvent('visai:goto-dashboard'))}
+                      style={{ width: '100%', padding: '0.85rem 1.25rem' }}
+                    >
+                      <span>Go to Dashboard</span>
+                      <ArrowRight size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* =====================================================
+                FAR RIGHT BACKGROUND PEEKING SLIDING WINDOW CARD
+               ===================================================== */}
+            <div
+              onClick={nextSlide}
+              className={`sliding-window-bg-card sliding-window-right card-pastel-${nextSlideData.theme}`}
+              title="Click to view next slide window"
+              style={{
+                width: '260px',
+                height: '410px',
+                borderRadius: 'var(--r-2xl)',
+                padding: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                flexShrink: 0,
+                opacity: 0.55,
+                transform: 'rotateY(-18deg) scale(0.88) translateZ(-60px)',
+                cursor: 'pointer',
+                transition: 'all 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.06)',
+                border: '1.5px solid rgba(255,255,255,0.8)',
+                backdropFilter: 'blur(8px)',
+                position: 'relative',
+                overflow: 'hidden',
+                userSelect: 'none',
+              }}
+            >
+              {/* Peek Label */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--whiz-dark)' }}>
+                  {nextSlideData.badgeText?.slice(0, 18)}...
+                </span>
+                <span className="badge badge-dark" style={{ fontSize: '0.68rem', opacity: 0.9 }}>
+                  Next ▶
+                </span>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--whiz-dark)', marginBottom: '0.25rem' }}>
+                  {nextSlideData.title}
+                </div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--whiz-coral)' }}>
+                  {nextSlideData.highlight}
+                </div>
+              </div>
+
+              {/* Mini Preview Thumbnail */}
+              <div style={{ height: 130, borderRadius: 'var(--r-lg)', overflow: 'hidden', position: 'relative' }}>
+                <img
+                  src={nextSlideData.photoSrc}
+                  alt={nextSlideData.photoTitle}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.9)' }}
+                />
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)',
+                  display: 'flex', alignItems: 'flex-end', padding: '0.5rem'
+                }}>
+                  <span style={{ color: '#fff', fontSize: '0.75rem', fontWeight: 800 }}>
+                    {nextSlideData.photoTitle}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Sliding Window Navigation Controls (Left/Right Arrows & Dots) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '1.25rem',
+            marginTop: '1.75rem'
+          }}>
+            <button
+              onClick={prevSlide}
+              aria-label="Previous Slide Window"
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: '50%',
+                background: '#FFFFFF',
+                border: '1.5px solid var(--canvas-border)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <IconComponent size={22} />
-              </div>
-              <span style={{
-                fontSize: '0.8rem',
-                fontWeight: 800,
-                color: currentHeroSlide.color,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em'
-              }}>
-                {currentHeroSlide.badge}
-              </span>
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: 'var(--shadow-xs)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <ChevronLeft size={20} color="var(--whiz-dark)" />
+            </button>
+
+            {/* Slide Indicator Dots */}
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              {slides.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentSlide(idx)}
+                  aria-label={`Go to slide ${idx + 1}`}
+                  style={{
+                    width: currentSlide === idx ? 32 : 10,
+                    height: 10,
+                    borderRadius: 'var(--r-full)',
+                    background: currentSlide === idx ? 'var(--whiz-coral)' : 'var(--canvas-border-strong)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                    padding: 0
+                  }}
+                />
+              ))}
             </div>
 
-            {/* Carousel Slide Controls */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <button
-                onClick={() => setActiveSlide(prev => (prev === 0 ? HERO_SLIDES.length - 1 : prev - 1))}
-                className="btn btn-sm btn-secondary"
-                style={{ padding: '0.35rem 0.6rem' }}
-                title="Previous Slide"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.8rem', color: '#0f172a' }}>
-                Slide {activeSlide + 1} of {HERO_SLIDES.length}
-              </span>
-              <button
-                onClick={() => setActiveSlide(prev => (prev + 1) % HERO_SLIDES.length)}
-                className="btn btn-sm btn-secondary"
-                style={{ padding: '0.35rem 0.6rem' }}
-                title="Next Slide"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
+            <button
+              onClick={nextSlide}
+              aria-label="Next Slide Window"
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: '50%',
+                background: '#FFFFFF',
+                border: '1.5px solid var(--canvas-border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: 'var(--shadow-xs)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <ChevronRight size={20} color="var(--whiz-dark)" />
+            </button>
           </div>
 
-          <h3 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem', lineHeight: 1.3 }}>
-            {currentHeroSlide.title}
-          </h3>
-          <p style={{ fontSize: '0.95rem', color: '#334155', lineHeight: 1.6, marginBottom: '0.75rem' }}>
-            {currentHeroSlide.subtitle}
-          </p>
-          <div style={{ fontSize: '0.85rem', color: currentHeroSlide.color, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Sparkles size={14} />
-            <span>{currentHeroSlide.highlight}</span>
-          </div>
-
-          {/* Slide Indicator Dots */}
-          <div style={{ display: 'flex', gap: '0.4rem', marginTop: '1.25rem' }}>
-            {HERO_SLIDES.map((s, idx) => (
-              <button
-                key={s.id}
-                onClick={() => setActiveSlide(idx)}
-                style={{
-                  width: activeSlide === idx ? '28px' : '8px',
-                  height: '8px',
-                  borderRadius: '4px',
-                  background: activeSlide === idx ? currentHeroSlide.color : '#cbd5e1',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease'
-                }}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Dual Track Banner Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: '1.5rem',
-          maxWidth: '1080px',
-          margin: '0 auto 3.5rem'
-        }}>
-          {/* Software Track Box */}
-          <div className="glass-card" style={{ padding: '2rem', position: 'relative', overflow: 'hidden', borderTop: '4px solid #0284c7' }}>
-            <div style={{
-              position: 'absolute',
-              top: '-30px',
-              right: '-30px',
-              width: '100px',
-              height: '100px',
-              background: 'rgba(2, 132, 199, 0.08)',
-              borderRadius: '50%',
-              filter: 'blur(20px)'
-            }} />
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <div style={{ background: '#e0f2fe', padding: '0.6rem', borderRadius: '12px', color: '#0284c7' }}>
-                  <Code2 size={24} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>💻 Software Track</h3>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>AI, Cloud, Cyber, Mobile & Web</span>
-                </div>
-              </div>
-              <span className="track-software" style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '9999px' }}>
-                On-Spot Release
-              </span>
-            </div>
-            <p style={{ fontSize: '0.875rem', color: '#334155', lineHeight: 1.6, marginBottom: '1.25rem' }}>
-              Software problem statements are released <strong>exclusively at the hackathon venue</strong>. Teams ideate, code, integrate models, and deploy working MVPs under official 36/48-hour time constraint.
-            </p>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.78rem', color: '#0284c7', fontWeight: 600 }}>
-              <span>• Zero Pre-Coding</span>
-              <span>• Live Verification</span>
-              <span>• AI & ML Benchmarks</span>
-            </div>
-          </div>
-
-          {/* Hardware Track Box */}
-          <div className="glass-card" style={{ padding: '2rem', position: 'relative', overflow: 'hidden', borderTop: '4px solid #059669' }}>
-            <div style={{
-              position: 'absolute',
-              top: '-30px',
-              right: '-30px',
-              width: '100px',
-              height: '100px',
-              background: 'rgba(5, 150, 105, 0.08)',
-              borderRadius: '50%',
-              filter: 'blur(20px)'
-            }} />
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <div style={{ background: '#d1fae5', padding: '0.6rem', borderRadius: '12px', color: '#059669' }}>
-                  <Cpu size={24} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>🔧 Hardware Track</h3>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>IoT, Robotics, Embedded & Sensors</span>
-                </div>
-              </div>
-              <span className="track-hardware" style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '9999px' }}>
-                7-10 Days Pre-Release
-              </span>
-            </div>
-            <p style={{ fontSize: '0.875rem', color: '#334155', lineHeight: 1.6, marginBottom: '1.25rem' }}>
-              Hardware challenges released <strong>7–10 days before the event</strong> to allow research, component sourcing, and architecture design. Full prototype assembly happens live at the hackathon.
-            </p>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.78rem', color: '#059669', fontWeight: 600 }}>
-              <span>• Component Procurement</span>
-              <span>• Safety Screening</span>
-              <span>• Live Bench Prototyping</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Live Countdown & Stats Strip */}
-        <div className="glass-card" style={{
-          padding: '2rem 2.5rem',
-          maxWidth: '1080px',
-          margin: '0 auto',
-          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-          borderColor: '#cbd5e1',
-          boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.06)'
-        }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '1.5rem',
-            alignItems: 'center'
-          }}>
-            {/* Countdown Box */}
-            <div style={{ borderRight: '1px solid #e2e8f0', paddingRight: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem', fontWeight: 700 }}>
-                <Clock size={14} color="#2563eb" />
-                <span>Countdown to Kickoff</span>
-              </div>
-              <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0f172a', fontFamily: 'var(--font-mono)' }}>{timeLeft.days}</div>
-                  <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700 }}>DAYS</div>
-                </div>
-                <span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>:</span>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0f172a', fontFamily: 'var(--font-mono)' }}>{timeLeft.hours}</div>
-                  <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700 }}>HRS</div>
-                </div>
-                <span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>:</span>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0f172a', fontFamily: 'var(--font-mono)' }}>{timeLeft.minutes}</div>
-                  <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700 }}>MIN</div>
-                </div>
-                <span style={{ fontSize: '1.2rem', color: '#94a3b8' }}>:</span>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#2563eb', fontFamily: 'var(--font-mono)' }}>{timeLeft.seconds}</div>
-                  <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700 }}>SEC</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Stat 1 */}
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#d97706', fontFamily: 'var(--font-display)' }}>
-                Awards
-              </div>
-              <div style={{ fontSize: '0.825rem', color: '#475569', fontWeight: 600 }}>
-                Seed Grants & Incubation Support
-              </div>
-            </div>
-
-            {/* Stat 2 */}
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#2563eb', fontFamily: 'var(--font-display)' }}>
-                303+
-              </div>
-              <div style={{ fontSize: '0.825rem', color: '#475569', fontWeight: 600 }}>
-                Shortlisted Teams Nationwide
-              </div>
-            </div>
-
-            {/* Stat 3 */}
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#059669', fontFamily: 'var(--font-display)' }}>
-                Malaysia
-              </div>
-              <div style={{ fontSize: '0.825rem', color: '#475569', fontWeight: 600 }}>
-                Fully-Funded International Trip
-              </div>
-            </div>
-          </div>
         </div>
 
       </div>
+
+      <style>{`
+        .sliding-window-bg-card:hover {
+          opacity: 0.88 !important;
+          transform: rotateY(0deg) scale(0.94) translateZ(0px) !important;
+        }
+        @media (max-width: 1280px) {
+          .sliding-window-bg-card {
+            display: none !important;
+          }
+        }
+        @media (max-width: 900px) {
+          .hero-bento-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .hero-photo-card {
+            min-height: 290px !important;
+            height: 290px !important;
+          }
+        }
+      `}</style>
     </section>
   );
 }

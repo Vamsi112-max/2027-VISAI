@@ -1,135 +1,115 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const multer = require('multer');
-const path = require('path');
-const db = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'visai_development_secret';
 
-app.use(cors());
-app.use(express.json());
+// =====================================================
+// MIDDLEWARE
+// =====================================================
+
+app.use(cors({
+  origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  credentials: true,
+}));
+
+// Raw body for Razorpay webhook (must come before express.json)
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files (with basic access — consider securing in production)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Dummy OTP Storage (In-memory for development)
-const otpStore = new Map();
+// =====================================================
+// DATABASE INITIALIZATION
+// =====================================================
 
-// Authentication Middleware
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  
-  if (!token) return res.sendStatus(401);
+const pool = require('./database');
+const { initializeDatabase } = require('./schema');
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
-    next();
-  });
-};
+(async () => {
+  if (!pool.isSqlite()) {
+    try {
+      await initializeDatabase();
+    } catch (err) {
+      console.error('[Server] TiDB schema init note:', err.message);
+    }
+  }
+})();
 
-// ==========================================
-// AUTHENTICATION ROUTES
-// ==========================================
+// =====================================================
+// ROUTES
+// =====================================================
 
-app.post('/api/auth/request-otp', (req, res) => {
-  const { email } = req.body;
-  const otp = '123456'; // Dummy OTP for development
-  otpStore.set(email, otp);
-  
-  console.log(`[DEVELOPMENT OTP] Sent to ${email}: ${otp}`);
-  res.json({ message: 'OTP sent successfully (Check server logs)' });
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/teams', require('./routes/teams'));
+app.use('/api/payments', require('./routes/payments'));
+app.use('/api/problem-statements', require('./routes/problems'));
+app.use('/api/submissions', require('./routes/submissions'));
+app.use('/api/jury', require('./routes/jury'));
+app.use('/api/results', require('./routes/results'));
+app.use('/api/admin', require('./routes/admin'));
+
+// Public endpoint for live site content (used by visitors and participants)
+app.get('/api/content', async (req, res) => {
+  try {
+    const [settings] = await pool.query(
+      `SELECT setting_value FROM event_settings WHERE setting_key = 'site_content_json' LIMIT 1`
+    );
+    if (settings && settings[0] && settings[0].setting_value) {
+      try {
+        return res.json({ content: JSON.parse(settings[0].setting_value) });
+      } catch(err) {
+        return res.json({ content: settings[0].setting_value });
+      }
+    }
+    res.json({ content: null });
+  } catch (e) {
+    res.json({ content: null });
+  }
 });
 
-app.post('/api/auth/register', (req, res) => {
-  const { name, email, phone, password, otp } = req.body;
-  
-  if (otpStore.get(email) !== otp) {
-    return res.status(400).json({ error: 'Invalid or expired OTP' });
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'VISAI 2027 API',
+    version: '2.0.0',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// =====================================================
+// ERROR HANDLING
+// =====================================================
+
+// 404
+app.use((req, res) => {
+  res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('[Server] Unhandled error:', err.message);
+
+  // Multer file size error
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: `File too large. Maximum size is ${process.env.UPLOAD_MAX_SIZE_MB || 25}MB` });
   }
 
-  bcrypt.hash(password, 10, (err, hash) => {
-    if (err) return res.status(500).json({ error: 'Hashing error' });
-
-    db.run(
-      'INSERT INTO users (name, email, phone, password, is_verified) VALUES (?, ?, ?, ?, 1)',
-      [name, email, phone, hash],
-      function (err) {
-        if (err) {
-          if (err.message.includes('UNIQUE')) {
-            return res.status(400).json({ error: 'Email already registered' });
-          }
-          return res.status(500).json({ error: 'Database error' });
-        }
-        
-        otpStore.delete(email); // Clean up OTP
-        res.status(201).json({ message: 'Registration successful', userId: this.lastID });
-      }
-    );
-  });
+  res.status(500).json({ error: 'Internal server error' });
 });
 
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  
-  db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    if (!user) return res.status(400).json({ error: 'User not found' });
+// =====================================================
+// START
+// =====================================================
 
-    bcrypt.compare(password, user.password, (err, match) => {
-      if (err) return res.status(500).json({ error: 'Comparison error' });
-      if (!match) return res.status(400).json({ error: 'Invalid credentials' });
-
-      const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-      res.json({ token, role: user.role, name: user.name });
-    });
-  });
-});
-
-// ==========================================
-// API ROUTES: TEAMS & PARTICIPANTS
-// ==========================================
-
-app.post('/api/teams', authenticateToken, (req, res) => {
-  const { name, problem_statement_id, members } = req.body;
-  const leader_id = req.user.id;
-  
-  db.run(
-    'INSERT INTO teams (name, leader_id, problem_statement_id) VALUES (?, ?, ?)',
-    [name, leader_id, problem_statement_id],
-    function (err) {
-      if (err) return res.status(500).json({ error: 'Failed to create team' });
-      
-      const teamId = this.lastID;
-      
-      // Add members (simplified)
-      if (members && members.length > 0) {
-        const stmt = db.prepare('INSERT INTO team_members (team_id, name, email, phone, institution) VALUES (?, ?, ?, ?, ?)');
-        members.forEach(m => {
-          stmt.run(teamId, m.name, m.email, m.phone, m.institution);
-        });
-        stmt.finalize();
-      }
-      
-      res.status(201).json({ message: 'Team created successfully', teamId });
-    }
-  );
-});
-
-app.get('/api/problem-statements', (req, res) => {
-  db.all('SELECT * FROM problem_statements WHERE status = "active"', [], (err, rows) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    res.json(rows);
-  });
-});
-
-// ==========================================
-// START SERVER
-// ==========================================
 app.listen(PORT, () => {
-  console.log(`VISAI Backend Server running on port ${PORT}`);
+  console.log(`[Server] VISAI 2027 API running on port ${PORT}`);
+  console.log(`[Server] Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`[Server] Razorpay Mode: ${process.env.RAZORPAY_MODE || 'test'}`);
 });

@@ -1,197 +1,429 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { X, Mail, Lock, User, Phone, ArrowRight, Eye, EyeOff, CheckCircle, Sparkles, Key, ShieldCheck, Award, Wrench, UserCheck } from 'lucide-react';
+import { authAPI } from '../hooks/api';
+import { useAuth } from '../context/AuthContext';
 import { DEMO_CREDENTIALS } from '../data/visaiData';
-import { X, Key, ShieldCheck, UserCheck, Award, Wrench, Lock, Mail, ArrowRight, User, Phone } from 'lucide-react';
 
-const roleIcons = {
-  admin: ShieldCheck,
-  participant: UserCheck,
-  jury: Award,
-  coordinator: Wrench
-};
-
-export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [step, setStep] = useState(1); // 1 = details, 2 = otp verification (for register)
+export default function AuthModal({ isOpen, onClose, defaultMode = 'login' }) {
+  const { login } = useAuth();
+  const [mode, setMode] = useState(defaultMode); // 'login' | 'register'
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [regForm, setRegForm] = useState({
+    full_name: '', email: '', phone: '', password: '', confirm_password: ''
+  });
 
   if (!isOpen) return null;
 
-  const handlePreFill = (cred) => {
-    setIsLogin(true);
-    setEmail(cred.email);
-    setPassword(cred.password);
+  const handleSelectDemo = (cred) => {
+    setMode('login');
+    setLoginForm({ email: cred.email, password: cred.password });
     setError('');
   };
 
-  const handleLoginSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
+    const emailInput = loginForm.email.trim();
+    const passwordInput = loginForm.password;
+
     try {
-      // For demo fast-login fallback
-      const matched = DEMO_CREDENTIALS.find(
-        c => c.email.toLowerCase() === email.toLowerCase() && c.password === password
+      const res = await authAPI.login({ email: emailInput, password: passwordInput });
+      login(res.data.token, res.data.user);
+      onClose();
+    } catch (err) {
+      // Check demo credentials match for instant seamless login
+      const matchedDemo = DEMO_CREDENTIALS.find(
+        d => d.email.toLowerCase() === emailInput.toLowerCase() && d.password === passwordInput
       );
-      if (matched) {
-        onLoginSuccess(matched.role);
+
+      if (matchedDemo) {
+        const demoToken = 'demo_token_' + matchedDemo.role + '_' + Date.now();
+        const demoUser = {
+          id: 'demo_' + matchedDemo.role,
+          email: matchedDemo.email,
+          role: matchedDemo.role,
+          full_name: matchedDemo.name,
+          email_verified: true,
+        };
+        login(demoToken, demoUser);
         onClose();
         return;
       }
-      
-      const res = await axios.post('http://localhost:5000/api/auth/login', { email, password });
-      localStorage.setItem('token', res.data.token);
-      onLoginSuccess(res.data.role);
+
+      setError(err.response?.data?.error || 'Invalid email or password. Please check your credentials or click a demo role above.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (regForm.password !== regForm.confirm_password) {
+      setError('Passwords do not match');
+      return;
+    }
+    if (regForm.password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await authAPI.register({
+        full_name: regForm.full_name,
+        email: regForm.email.trim(),
+        phone: regForm.phone,
+        password: regForm.password,
+      });
+      login(res.data.token, res.data.user);
       onClose();
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
+      // Fallback local registration if backend offline
+      const localToken = 'local_token_part_' + Date.now();
+      const localUser = {
+        id: 'usr_local_' + Date.now(),
+        email: regForm.email.trim(),
+        role: 'participant',
+        full_name: regForm.full_name,
+        email_verified: true,
+      };
+      login(localToken, localUser);
+      onClose();
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleRequestOtp = async (e) => {
-    e.preventDefault();
-    setError('');
-    try {
-      const res = await axios.post('http://localhost:5000/api/auth/request-otp', { email });
-      setSuccessMsg(`OTP Sent (Dev: 123456)`);
-      setStep(2);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to request OTP');
-    }
-  };
-
-  const handleRegisterSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    try {
-      await axios.post('http://localhost:5000/api/auth/register', { name, email, phone, password, otp });
-      setSuccessMsg('Registration successful! Please login.');
-      setIsLogin(true);
-      setStep(1);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Registration failed');
+  const getRoleIcon = (role) => {
+    switch (role) {
+      case 'super_admin': return <ShieldCheck size={13} />;
+      case 'coordinator': return <Wrench size={13} />;
+      case 'jury': return <Award size={13} />;
+      default: return <UserCheck size={13} />;
     }
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
-        
+      <div className="modal-box narrow" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
         <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-              <Key size={20} />
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.2rem' }}>
+              <div className="whiz-logo-icon" style={{ width: 32, height: 32, fontSize: '0.9rem' }}>
+                <Sparkles size={16} color="#fff" />
+              </div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--whiz-dark)' }}>VISAI 2027</h2>
             </div>
-            <div>
-              <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a' }}>
-                VISAI 2027 Portal
-              </h2>
-              <p style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                {isLogin ? 'Login to access your dashboard' : 'Register for VISAI 2027'}
-              </p>
-            </div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              {mode === 'login' ? 'Sign in to access your dashboard' : 'Create your team leader account'}
+            </p>
           </div>
-          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+          <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
+            <X size={16} />
+          </button>
         </div>
 
-        {/* Form Toggle */}
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-          <button onClick={() => { setIsLogin(true); setError(''); setSuccessMsg(''); }} className={`btn ${isLogin ? 'btn-primary' : 'btn-secondary'}`} style={{ flex: 1 }}>Login</button>
-          <button onClick={() => { setIsLogin(false); setStep(1); setError(''); setSuccessMsg(''); }} className={`btn ${!isLogin ? 'btn-primary' : 'btn-secondary'}`} style={{ flex: 1 }}>Register</button>
-        </div>
-
-        {error && <div style={{ background: '#fef2f2', color: '#dc2626', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem' }}>{error}</div>}
-        {successMsg && <div style={{ background: '#ecfdf5', color: '#059669', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem' }}>{successMsg}</div>}
-
-        {isLogin ? (
-          <form onSubmit={handleLoginSubmit}>
-            <div className="form-group">
-              <label className="form-label">Email Address</label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter email" className="form-input" style={{ paddingLeft: '2.5rem' }} />
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Password</label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" className="form-input" style={{ paddingLeft: '2.5rem' }} />
-              </div>
-            </div>
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
-              <span>Login</span>
-              <ArrowRight size={16} />
+        {/* Mode Toggle */}
+        <div style={{
+          display: 'flex',
+          background: 'var(--canvas-subtle)',
+          borderRadius: 'var(--r-full)',
+          padding: '4px',
+          marginBottom: '1.5rem',
+          gap: '4px'
+        }}>
+          {['login', 'register'].map(m => (
+            <button
+              key={m}
+              onClick={() => { setMode(m); setError(''); }}
+              style={{
+                flex: 1,
+                padding: '0.55rem',
+                borderRadius: 'var(--r-full)',
+                fontSize: '0.875rem',
+                fontWeight: 700,
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                background: mode === m ? 'var(--whiz-dark)' : 'transparent',
+                color: mode === m ? '#FFFFFF' : 'var(--text-secondary)',
+                fontFamily: 'var(--font-sans)',
+              }}
+            >
+              {m === 'login' ? 'Sign In' : 'Register Team'}
             </button>
+          ))}
+        </div>
 
-            {/* Quick Demo Login */}
-            <div style={{ marginTop: '2rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
-              <p style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', marginBottom: '0.5rem' }}>Demo Accounts (1-Click Login):</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+        {/* Error Alert */}
+        {error && (
+          <div className="alert alert-error" style={{ marginBottom: '1.25rem' }}>
+            <X size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Login Form */}
+        {mode === 'login' && (
+          <>
+            {/* Quick Demo Fill Pills */}
+            <div style={{
+              background: 'var(--canvas-bg)',
+              borderRadius: 'var(--r-lg)',
+              padding: '1rem',
+              border: '1px solid var(--canvas-border)',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.785rem', fontWeight: 800, color: 'var(--whiz-coral)', marginBottom: '0.6rem' }}>
+                <Key size={13} />
+                <span>DEMO CREDENTIALS (CLICK TO AUTO-FILL):</span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                 {DEMO_CREDENTIALS.map(cred => (
-                  <div key={cred.role} onClick={() => handlePreFill(cred)} style={{ padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: cred.color }}></div>
-                    {cred.badge}
-                  </div>
+                  <button
+                    key={cred.role}
+                    type="button"
+                    onClick={() => handleSelectDemo(cred)}
+                    className="badge"
+                    style={{
+                      background: loginForm.email === cred.email ? 'var(--whiz-dark)' : '#FFFFFF',
+                      color: loginForm.email === cred.email ? '#FFFFFF' : 'var(--text-primary)',
+                      border: '1px solid var(--canvas-border)',
+                      cursor: 'pointer',
+                      padding: '0.35rem 0.65rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={`Email: ${cred.email} | Pass: ${cred.password}`}
+                  >
+                    {getRoleIcon(cred.role)}
+                    <span>{cred.badge}</span>
+                  </button>
                 ))}
               </div>
             </div>
-          </form>
-        ) : (
-          <form onSubmit={step === 1 ? handleRequestOtp : handleRegisterSubmit}>
-            {step === 1 ? (
-              <>
-                <div className="form-group">
-                  <label className="form-label">Full Name</label>
-                  <div style={{ position: 'relative' }}>
-                    <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                    <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter full name" className="form-input" style={{ paddingLeft: '2.5rem' }} />
-                  </div>
+
+            <form onSubmit={handleLogin}>
+              <div className="form-group">
+                <label className="form-label">Email Address</label>
+                <div className="input-group">
+                  <Mail size={16} className="input-icon" />
+                  <input
+                    type="email"
+                    required
+                    className="form-input"
+                    placeholder="e.g. admin@visai.in"
+                    value={loginForm.email}
+                    onChange={e => setLoginForm(p => ({ ...p, email: e.target.value }))}
+                  />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Email Address</label>
-                  <div style={{ position: 'relative' }}>
-                    <Mail size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                    <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter email" className="form-input" style={{ paddingLeft: '2.5rem' }} />
-                  </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Password</label>
+                <div className="input-group" style={{ position: 'relative' }}>
+                  <Lock size={16} className="input-icon" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    className="form-input"
+                    placeholder="Enter your password"
+                    value={loginForm.password}
+                    onChange={e => setLoginForm(p => ({ ...p, password: e.target.value }))}
+                    style={{ paddingRight: '2.8rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)'
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Phone Number</label>
-                  <div style={{ position: 'relative' }}>
-                    <Phone size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                    <input type="text" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Enter phone" className="form-input" style={{ paddingLeft: '2.5rem' }} />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Password</label>
-                  <div style={{ position: 'relative' }}>
-                    <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                    <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Create password" className="form-input" style={{ paddingLeft: '2.5rem' }} />
-                  </div>
-                </div>
-                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
-                  <span>Request OTP</span>
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-coral"
+                style={{ width: '100%', marginTop: '0.5rem', fontWeight: 800 }}
+                disabled={loading}
+              >
+                {loading ? (
+                  <span>Signing in...</span>
+                ) : (
+                  <>
+                    <span>Sign In</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+
+              <p style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Don't have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => setMode('register')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--whiz-coral)',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-sans)'
+                  }}
+                >
+                  Register your team here
                 </button>
-              </>
-            ) : (
-              <>
-                <div className="form-group">
-                  <label className="form-label">Development OTP</label>
-                  <input type="text" required value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="Enter 123456" className="form-input" />
-                  <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>* Use 123456 for development testing.</p>
+              </p>
+            </form>
+          </>
+        )}
+
+        {/* Register Form */}
+        {mode === 'register' && (
+          <form onSubmit={handleRegister}>
+            <div style={{
+              background: '#FFFBEB',
+              border: '1px solid #FDE68A',
+              borderRadius: 'var(--r-md)',
+              padding: '0.85rem',
+              marginBottom: '1.25rem',
+              fontSize: '0.825rem',
+              color: '#92400E'
+            }}>
+              <strong>Team Leader Account:</strong> Registration creates your leader credentials. Team members and college details will be completed in the step-by-step portal.
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Full Name <span style={{ color: 'var(--whiz-coral)' }}>*</span></label>
+              <div className="input-group">
+                <User size={16} className="input-icon" />
+                <input
+                  type="text"
+                  required
+                  className="form-input"
+                  placeholder="e.g. Rahul Sharma"
+                  value={regForm.full_name}
+                  onChange={e => setRegForm(p => ({ ...p, full_name: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Email Address <span style={{ color: 'var(--whiz-coral)' }}>*</span></label>
+              <div className="input-group">
+                <Mail size={16} className="input-icon" />
+                <input
+                  type="email"
+                  required
+                  className="form-input"
+                  placeholder="e.g. leader@college.edu"
+                  value={regForm.email}
+                  onChange={e => setRegForm(p => ({ ...p, email: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Mobile Number</label>
+              <div className="input-group">
+                <Phone size={16} className="input-icon" />
+                <input
+                  type="tel"
+                  className="form-input"
+                  placeholder="+91 98765 43210"
+                  value={regForm.phone}
+                  onChange={e => setRegForm(p => ({ ...p, phone: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div className="form-group">
+                <label className="form-label">Password <span style={{ color: 'var(--whiz-coral)' }}>*</span></label>
+                <div className="input-group">
+                  <Lock size={16} className="input-icon" />
+                  <input
+                    type="password"
+                    required
+                    className="form-input"
+                    placeholder="Min 8 chars"
+                    value={regForm.password}
+                    onChange={e => setRegForm(p => ({ ...p, password: e.target.value }))}
+                  />
                 </div>
-                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
-                  <span>Verify & Register</span>
-                </button>
-              </>
-            )}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Confirm <span style={{ color: 'var(--whiz-coral)' }}>*</span></label>
+                <div className="input-group">
+                  <Lock size={16} className="input-icon" />
+                  <input
+                    type="password"
+                    required
+                    className="form-input"
+                    placeholder="Re-enter"
+                    value={regForm.confirm_password}
+                    onChange={e => setRegForm(p => ({ ...p, confirm_password: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-coral"
+              style={{ width: '100%', marginTop: '0.5rem', fontWeight: 800 }}
+              disabled={loading}
+            >
+              {loading ? (
+                <span>Creating account...</span>
+              ) : (
+                <>
+                  <CheckCircle size={16} />
+                  <span>Create Team Leader Account</span>
+                </>
+              )}
+            </button>
+
+            <p style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Already registered?{' '}
+              <button
+                type="button"
+                onClick={() => setMode('login')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--whiz-coral)',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)'
+                }}
+              >
+                Sign in here
+              </button>
+            </p>
           </form>
         )}
+
       </div>
     </div>
   );

@@ -12,6 +12,27 @@ dist
 dist-ssr
 *.local
 
+# Environment variables & secrets
+.env
+.env.*
+*.env
+*.env.*
+server/.env
+server/.env.*
+!.env.example
+!*.env.example
+!server/.env.example
+
+# Databases & runtime storage
+*.db
+*.db-shm
+*.db-wal
+server/*.db
+server/*.db-shm
+server/*.db-wal
+server/backups/
+server/uploads/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
